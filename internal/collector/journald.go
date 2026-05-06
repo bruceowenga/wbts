@@ -60,7 +60,7 @@ func (j *JournaldCollector) Collect(ctx context.Context, opts event.Options) (<-
 	ch := make(chan event.Event, 256)
 	go func() {
 		defer close(ch)
-		defer cmd.Wait() //nolint:errcheck — exit code is not meaningful for log readers
+		defer func() { _ = cmd.Wait() }() // exit code is not meaningful for log stream readers
 
 		scanner := bufio.NewScanner(stdout)
 		scanner.Buffer(make([]byte, 1024*1024), 1024*1024)

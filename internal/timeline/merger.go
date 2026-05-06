@@ -3,7 +3,6 @@ package timeline
 import (
 	"context"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/bruceowenga/wbts/pkg/event"
@@ -140,7 +139,3 @@ func (tl *Timeline) detectIncidentWindows() {
 	}
 }
 
-// categorySummary returns a human-readable list of categories for display.
-func categorySummary(cats []string) string {
-	return strings.Join(cats, ", ")
-}

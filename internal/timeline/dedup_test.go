@@ -92,7 +92,7 @@ func TestDeduplicate_DifferentLevelsSeparateFingerprints(t *testing.T) {
 
 func TestDeduplicate_EmptyInput(t *testing.T) {
 	result := deduplicate(nil)
-	if result != nil && len(result) != 0 {
+	if len(result) != 0 {
 		t.Errorf("expected empty result for nil input")
 	}
 }
