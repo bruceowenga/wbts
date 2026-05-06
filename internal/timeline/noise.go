@@ -85,6 +85,8 @@ var infoNoisePatterns = []string{
 	"rtc-wake-scheduler",
 	"rtcwake:",
 	"RTC wake alarm set",
+	// Firmware update metadata refresh (routine background check)
+	"fwupd-refresh",
 	// Docker / containerd container lifecycle internals
 	// (restarting container is kept — it's signal; shim churn is internal machinery)
 	"shim disconnected",

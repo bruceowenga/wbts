@@ -184,6 +184,11 @@ func extractEmbeddedLevel(msg string) event.Level {
 		return event.Error
 	}
 
+	// Docker container restart — logged at INFO by Docker but warrants attention
+	if strings.Contains(lower, `msg="restarting container"`) || strings.Contains(lower, "msg=restarting container") {
+		return event.Warn
+	}
+
 	return event.Info
 }
 

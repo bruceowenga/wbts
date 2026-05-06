@@ -129,6 +129,8 @@ func TestExtractEmbeddedLevel(t *testing.T) {
 		{`ollama.service: [GIN] 2026/05/06 - 18:12:38 | 503 |       1.2ms |       127.0.0.1 | GET     "/api/tags"`, event.Error},
 		{`ollama.service: [GIN] 2026/05/06 - 18:12:38 | 200 |       1.2ms |       127.0.0.1 | GET     "/api/tags"`, event.Info},
 		{`ollama.service: [GIN] 2026/05/06 - 18:12:38 | 404 |       1.2ms |       127.0.0.1 | GET     "/api/missing"`, event.Info},
+		// Docker container restart
+		{`docker.service: time="2026-05-06T18:20:44Z" level=info msg="restarting container" container=abc123`, event.Warn},
 		// No embedded level
 		{`ordinary log line with no embedded level`, event.Info},
 	}
