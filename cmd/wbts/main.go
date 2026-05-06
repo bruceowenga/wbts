@@ -80,6 +80,8 @@ Examples:
 				collector.NewJournaldCollector(),
 				collector.NewDmesgCollector(),
 				collector.NewDockerCollector(),
+				collector.NewAptCollector(),
+				collector.NewAuthCollector(),
 			}
 
 			tl, err := timeline.Build(context.Background(), collectors, opts)
@@ -117,6 +119,8 @@ func newCheckPermsCmd() *cobra.Command {
 				collector.NewJournaldCollector(),
 				collector.NewDmesgCollector(),
 				collector.NewDockerCollector(),
+				collector.NewAptCollector(),
+				collector.NewAuthCollector(),
 			}
 
 			fmt.Printf("%-20s  %s\n", "COLLECTOR", "STATUS")

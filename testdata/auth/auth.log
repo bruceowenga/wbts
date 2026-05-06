@@ -1,0 +1,10 @@
+May  6 18:30:00 odin sshd[1234]: Failed password for bruce from 192.168.100.27 port 52341 ssh2
+May  6 18:30:01 odin sshd[1234]: Accepted publickey for bruce from 192.168.100.27 port 52341 ssh2: ED25519 SHA256:abc123def456
+May  6 18:30:05 odin sudo[5678]:    bruce : TTY=pts/0 ; PWD=/home/bruce ; USER=root ; COMMAND=/usr/bin/systemctl restart nginx
+May  6 18:30:06 odin sudo[5679]: pam_unix(sudo:session): session opened for user root(uid=0) by bruce(uid=1000)
+May  6 18:31:00 odin sshd[9999]: Invalid user admin from 185.0.0.1 port 54321
+May  6 18:31:01 odin sshd[9999]: Connection closed by invalid user admin 185.0.0.1 port 54321 [preauth]
+May  6 18:32:00 odin sshd[1111]: error: maximum authentication attempts exceeded for invalid user root from 185.0.0.1 port 33333 ssh2 [preauth]
+May  6 18:35:00 odin sshd[2222]: Accepted publickey for deploy from 10.0.0.5 port 44444 ssh2: ED25519 SHA256:xyz789
+May  6 18:35:10 odin sudo[3333]:   deploy : TTY=pts/1 ; PWD=/opt/app ; USER=root ; COMMAND=/usr/bin/docker compose up -d
+May  6 18:36:00 odin sshd[4444]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=10.0.0.99
