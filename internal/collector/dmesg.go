@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -38,6 +39,13 @@ func (d *DmesgCollector) Collect(ctx context.Context, opts event.Options) (<-cha
 	cmd := exec.CommandContext(ctx, "dmesg", "--level", "err,warn,crit,alert,emerg")
 	out, err := cmd.Output()
 	if err != nil && len(out) == 0 {
+		// Surface the actual dmesg error (often "Operation not permitted").
+		// Hint users toward the fix rather than leaving them with an exit code.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+			return nil, fmt.Errorf("dmesg: %s (try: sudo usermod -aG adm $USER)",
+				strings.TrimSpace(string(exitErr.Stderr)))
+		}
 		return nil, fmt.Errorf("dmesg: %w", err)
 	}
 

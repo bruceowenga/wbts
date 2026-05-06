@@ -117,14 +117,43 @@ func parseJournaldEntry(data []byte) (event.Event, bool) {
 		unit = entry.Unit
 	}
 
+	// Use journald priority as the baseline, but elevate if the service embeds
+	// a higher severity in the message body (e.g. cloudflared, Docker, Logrus).
+	lvl := journaldPriorityToLevel(entry.Priority)
+	if embedded := extractEmbeddedLevel(msg); embedded > lvl {
+		lvl = embedded
+	}
+
 	return event.Event{
 		Timestamp: ts,
 		Source:    "journald",
-		Level:     journaldPriorityToLevel(entry.Priority),
+		Level:     lvl,
 		Category:  journaldCategory(entry.Transport, entry.SyslogIdentifier, unit),
 		Summary:   buildSummary(unit, msg),
 		Raw:       string(data),
 	}, true
+}
+
+// extractEmbeddedLevel detects log severity markers that services write into the message
+// body when they route all output to journald at a single priority level.
+// Returns Info and false if no recognised pattern is found.
+func extractEmbeddedLevel(msg string) event.Level {
+	// Structured logging: level=error / level=warn (Logrus, Zap, Zerolog, Docker daemon)
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "level=error") || strings.Contains(lower, `"level":"error"`) {
+		return event.Error
+	}
+	if strings.Contains(lower, "level=warn") || strings.Contains(lower, `"level":"warn"`) {
+		return event.Warn
+	}
+	// Cloudflared / HashiCorp Vault style: timestamp + space + "ERR"/"WRN" + space
+	if strings.Contains(msg, " ERR ") {
+		return event.Error
+	}
+	if strings.Contains(msg, " WRN ") {
+		return event.Warn
+	}
+	return event.Info
 }
 
 func parseJournaldTimestamp(s string) (time.Time, error) {

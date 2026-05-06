@@ -95,18 +95,27 @@ func TestDetectIncidentWindows_InfoEventsDoNotCount(t *testing.T) {
 }
 
 func TestIsNoise(t *testing.T) {
-	cases := []struct{ summary string; want bool }{
-		{"Started Daily apt activities", true},
-		{"systemd-timesyncd: Synchronized", true},
-		{"nginx.service: Failed", false},
-		{"Reached target Multi-User System", true},
-		{"kernel: Out of memory", false},
-		{"logrotate: rotating log files", true},
+	cases := []struct {
+		summary string
+		level   event.Level
+		want    bool
+	}{
+		{"Started Daily apt activities", event.Info, true},
+		{"systemd-timesyncd: Synchronized", event.Info, true},
+		{"nginx.service: Failed", event.Info, false},
+		{"Reached target Multi-User System", event.Info, true},
+		{"kernel: Out of memory", event.Error, false},  // ERROR never suppressed
+		{"kernel: Out of memory", event.Info, false},   // not in patterns
+		{"logrotate: rotating log files", event.Info, true},
+		{"[UFW BLOCK] IN=eno1 OUT= SRC=192.168.1.1", event.Warn, true},
+		{"[UFW BLOCK] IN=eno1 OUT= SRC=192.168.1.1", event.Error, false}, // ERROR never suppressed
+		{"GET /metrics HTTP/1.1", event.Info, true},
+		{"dns: resolver: forward: no upstream resolvers set", event.Info, true},
 	}
 	for _, c := range cases {
-		got := isNoise(c.summary)
+		got := isNoise(c.level, c.summary)
 		if got != c.want {
-			t.Errorf("isNoise(%q) = %v, want %v", c.summary, got, c.want)
+			t.Errorf("isNoise(%v, %q) = %v, want %v", c.level, c.summary, got, c.want)
 		}
 	}
 }

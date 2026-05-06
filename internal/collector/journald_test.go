@@ -102,6 +102,28 @@ func TestJournaldPriorityToLevel(t *testing.T) {
 	}
 }
 
+func TestExtractEmbeddedLevel(t *testing.T) {
+	cases := []struct {
+		msg  string
+		want event.Level
+	}{
+		{`time="2026-05-06T18:02:51Z" level=error msg="failed to connect"`, event.Error},
+		{`time="2026-05-06T18:02:51Z" level=warn msg="retry"`, event.Warn},
+		{`2026-05-06T18:02:49Z ERR failed to run datagram handler`, event.Error},
+		{`2026-05-06T18:02:49Z WRN failed to serve tunnel connection`, event.Warn},
+		{`2026-05-06T18:02:49Z INF Retrying connection`, event.Info},
+		{`ordinary log line with no embedded level`, event.Info},
+		{`{"level":"error","msg":"oops"}`, event.Error},
+		{`{"level":"warn","msg":"slow"}`, event.Warn},
+	}
+	for _, c := range cases {
+		got := extractEmbeddedLevel(c.msg)
+		if got != c.want {
+			t.Errorf("extractEmbeddedLevel(%q) = %v, want %v", c.msg, got, c.want)
+		}
+	}
+}
+
 func TestParseJournaldEntryFromFixture(t *testing.T) {
 	f, err := os.Open("../../testdata/journald/sample.json")
 	if err != nil {

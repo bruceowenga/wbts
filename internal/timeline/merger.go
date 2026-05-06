@@ -69,10 +69,10 @@ func Build(ctx context.Context, collectors []event.Collector, opts event.Options
 		return raw[i].Timestamp.Before(raw[j].Timestamp)
 	})
 
-	// Filter: suppress Info-level noise; always keep Warn and above
+	// Suppress known-routine events. ERROR and CRITICAL always pass through.
 	filtered := raw[:0]
 	for _, e := range raw {
-		if e.Level == event.Info && isNoise(e.Summary) {
+		if isNoise(e.Level, e.Summary) {
 			continue
 		}
 		filtered = append(filtered, e)
