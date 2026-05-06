@@ -55,8 +55,14 @@ var infoNoisePatterns = []string{
 	"COMPACT deleted",
 	// sysstat routine accounting
 	"sysstat-collect",
-	// Tailscale network checks
+	// Tailscale network checks and DERP relay management (routine mesh networking)
 	"netcheck: DetectCaptivePortal",
+	"magicsock:",
+	"derphttp.Client",
+	"health(warnable=",
+	// Docker bridge interfaces entering/leaving promiscuous mode (container network lifecycle)
+	"entered promiscuous mode",
+	"left promiscuous mode",
 	// Kubernetes/k3s routine info chatter
 	"updated ClusterIP allocator",
 	"cidrallocator.go",
