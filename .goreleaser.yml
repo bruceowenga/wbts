@@ -1,0 +1,81 @@
+version: 2
+
+project_name: wbts
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - main: ./cmd/wbts
+    binary: wbts
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/bruceowenga/wbts/cmd/wbts.version={{.Version}}
+      - -X github.com/bruceowenga/wbts/cmd/wbts.commit={{.ShortCommit}}
+      - -X github.com/bruceowenga/wbts/cmd/wbts.date={{.Date}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+
+nfpms:
+  - package_name: wbts
+    homepage: https://github.com/bruceowenga/wbts
+    maintainer: Bruce Owenga <bruceowenga@gmail.com>
+    description: |-
+      wbts — what broke the server?
+      Forensic incident timeline builder for Linux/Docker systems.
+      Correlates journald, dmesg, Docker events, apt, auth, and cron logs
+      into a single chronological timeline.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    section: utils
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/wbts/README.md
+        type: doc
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^chore:"
+      - "^test:"
+      - "^docs:"
+      - "typo"
+  groups:
+    - title: Features
+      regexp: "^feat:"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^fix:"
+      order: 1
+    - title: Other
+      order: 999
+
+release:
+  github:
+    owner: bruceowenga
+    name: wbts
+  name_template: "v{{.Version}}"
+  draft: false
+  prerelease: auto

@@ -17,6 +17,13 @@ import (
 
 const maxDefaultRange = 24 * time.Hour
 
+// Injected at build time by GoReleaser ldflags.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -35,8 +42,9 @@ func newRootCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "wbts",
-		Short: "what broke the server — forensic incident timeline for Linux/Docker",
+		Use:     "wbts",
+		Short:   "what broke the server — forensic incident timeline for Linux/Docker",
+		Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
 		Long: `wbts correlates logs from journald, dmesg, Docker events, apt, auth, and cron
 into a single chronological timeline. Run it after an incident to reconstruct what happened.
 
