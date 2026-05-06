@@ -124,6 +124,11 @@ func TestExtractEmbeddedLevel(t *testing.T) {
 		// Alertmanager forwarded alerts
 		{`Forwarded alert: CRITICAL: SystemLoadCritical`, event.Critical},
 		{`Forwarded alert: WARNING: DiskSpaceLow`, event.Warn},
+		// GIN HTTP access log
+		{`ollama.service: [GIN] 2026/05/06 - 18:12:38 | 500 |          2m0s |       127.0.0.1 | POST     "/api/generate"`, event.Error},
+		{`ollama.service: [GIN] 2026/05/06 - 18:12:38 | 503 |       1.2ms |       127.0.0.1 | GET     "/api/tags"`, event.Error},
+		{`ollama.service: [GIN] 2026/05/06 - 18:12:38 | 200 |       1.2ms |       127.0.0.1 | GET     "/api/tags"`, event.Info},
+		{`ollama.service: [GIN] 2026/05/06 - 18:12:38 | 404 |       1.2ms |       127.0.0.1 | GET     "/api/missing"`, event.Info},
 		// No embedded level
 		{`ordinary log line with no embedded level`, event.Info},
 	}

@@ -179,6 +179,11 @@ func extractEmbeddedLevel(msg string) event.Level {
 		return event.Warn
 	}
 
+	// GIN HTTP access log: elevate 5xx server errors (4xx are often normal client errors)
+	if strings.Contains(msg, "[GIN]") && strings.Contains(msg, "| 5") {
+		return event.Error
+	}
+
 	return event.Info
 }
 

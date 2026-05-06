@@ -43,8 +43,10 @@ func (d *DmesgCollector) Collect(ctx context.Context, opts event.Options) (<-cha
 		// Hint users toward the fix rather than leaving them with an exit code.
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
-			return nil, fmt.Errorf("dmesg: %s (try: sudo usermod -aG adm $USER)",
-				strings.TrimSpace(string(exitErr.Stderr)))
+			// dmesg writes "dmesg: read kernel buffer failed: ..." to stderr;
+			// strip the leading "dmesg: " so we don't double-prefix it.
+			msg := strings.TrimPrefix(strings.TrimSpace(string(exitErr.Stderr)), "dmesg: ")
+			return nil, fmt.Errorf("dmesg: %s (try: sudo usermod -aG adm $USER)", msg)
 		}
 		return nil, fmt.Errorf("dmesg: %w", err)
 	}

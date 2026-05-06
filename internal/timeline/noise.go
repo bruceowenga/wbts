@@ -76,6 +76,31 @@ var infoNoisePatterns = []string{
 	"The client has reconnected",
 	"[ExtensionHostConnection]",
 	"[ManagementConnection]",
+	// Grafana routine background workers
+	"logger=plugins.update.checker",
+	"logger=bleve-backend",
+	"logger=infra.usagestats",
+	"logger=plugin.finder",
+	// RTC wake alarm scheduling (routine periodic task)
+	"rtc-wake-scheduler",
+	"rtcwake:",
+	"RTC wake alarm set",
+	// Docker / containerd container lifecycle internals
+	// (restarting container is kept — it's signal; shim churn is internal machinery)
+	"shim disconnected",
+	"cleaning up after shim",
+	"cleaning up dead shim",
+	"connecting to shim",
+	"received task-delete event",
+	"sbJoin:",
+	// Docker overlay2 mount lifecycle in init.scope
+	"var-lib-docker-overlay2-",
+	"docker-", // init.scope docker-<id>.scope start/stop lines
+	// HTTP access log success responses (non-GIN format, e.g. Python SimpleHTTPServer)
+	`HTTP/1.1" 200`,
+	`HTTP/1.1" 201`,
+	`HTTP/1.1" 204`,
+	`HTTP/1.1" 304`,
 }
 
 // warnNoisePatterns suppress WARN-level events that are routine on most Linux servers.
