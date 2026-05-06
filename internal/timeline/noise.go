@@ -182,6 +182,29 @@ var infoNoisePatterns = []string{
 	// logind routine session tracking (the auth collector handles SSH/sudo signal)
 	"New session ",
 	"Started session-",
+	// Bluetooth service condition check (fires on systems where BT hardware is absent)
+	"bluetooth.service - Bluetooth service skipped",
+	"bluetooth.service: Bluetooth service skipped",
+	"Cannot find Bluez 5 adapter",
+	// Process manager /proc stat warnings — short-lived processes exit before stat completes
+	"Failed to stat /proc/",
+	// NetworkManager routine dispatcher lifecycle
+	"Starting NetworkManager-dispatcher",
+	"Started NetworkManager-dispatcher",
+	"NetworkManager-dispatcher.service: Deactivated",
+	// hostname service lifecycle (triggered by network events)
+	"Starting systemd-hostnamed",
+	"Started systemd-hostnamed",
+	"systemd-hostnamed.service: Deactivated",
+	// Desktop environment noise (appindicator deprecation, missing themes/libs)
+	"libayatana-appindicator is deprecated",
+	"Icon theme ",
+	"Cannot load libcuda.so.1",
+	// crond on RHEL/Fedora (hourly cron runs)
+	"crond.service: (/etc/cron.",
+	"(/etc/cron.hourly)",
+	// session scope deactivation (desktops, GUI sessions)
+	"session-c",
 }
 
 // warnNoisePatterns suppress WARN-level events that are routine on most Linux servers.
@@ -194,6 +217,10 @@ var warnNoisePatterns = []string{
 	// carduka-scraper config permission warnings fire on every systemd daemon-reload/rescan
 	"carduka-scraper.timer is marked world-inaccessible",
 	"carduka-scraper.service is marked world-inaccessible",
+	// Bluetooth adapter missing (fires every 5 minutes on systems without BT hardware)
+	"Cannot find Bluez 5 adapter",
+	// /proc stat races on process exit (cosmetic, not actionable)
+	"Failed to stat /proc/",
 }
 
 // isNoise returns true if the event should be suppressed based on its level and summary.
