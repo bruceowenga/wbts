@@ -79,6 +79,7 @@ Examples:
 			collectors := []event.Collector{
 				collector.NewJournaldCollector(),
 				collector.NewDmesgCollector(),
+				collector.NewDockerCollector(),
 			}
 
 			tl, err := timeline.Build(context.Background(), collectors, opts)
@@ -115,6 +116,7 @@ func newCheckPermsCmd() *cobra.Command {
 			collectors := []event.Collector{
 				collector.NewJournaldCollector(),
 				collector.NewDmesgCollector(),
+				collector.NewDockerCollector(),
 			}
 
 			fmt.Printf("%-20s  %s\n", "COLLECTOR", "STATUS")

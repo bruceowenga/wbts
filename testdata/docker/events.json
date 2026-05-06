@@ -1,0 +1,11 @@
+{"Type":"container","Action":"oom","Actor":{"ID":"890c1b2952f0d6965867c33102611cedda6f50f07ecaa8c38265f30684d100ac","Attributes":{"image":"my-app:latest","name":"app_web_1"}},"scope":"local","time":1746413233,"timeNano":1746413233000000000}
+{"Type":"container","Action":"die","Actor":{"ID":"890c1b2952f0d6965867c33102611cedda6f50f07ecaa8c38265f30684d100ac","Attributes":{"exitCode":"137","image":"my-app:latest","name":"app_web_1"}},"scope":"local","time":1746413233,"timeNano":1746413233100000000}
+{"Type":"container","Action":"restart","Actor":{"ID":"890c1b2952f0d6965867c33102611cedda6f50f07ecaa8c38265f30684d100ac","Attributes":{"image":"my-app:latest","name":"app_web_1"}},"scope":"local","time":1746413236,"timeNano":1746413236000000000}
+{"Type":"container","Action":"start","Actor":{"ID":"890c1b2952f0d6965867c33102611cedda6f50f07ecaa8c38265f30684d100ac","Attributes":{"image":"my-app:latest","name":"app_web_1"}},"scope":"local","time":1746413240,"timeNano":1746413240000000000}
+{"Type":"container","Action":"die","Actor":{"ID":"def456aabbccdd","Attributes":{"exitCode":"0","image":"backup:latest","name":"backup-cron"}},"scope":"local","time":1746413250,"timeNano":1746413250000000000}
+{"Type":"container","Action":"die","Actor":{"ID":"def456aabbccdd","Attributes":{"exitCode":"1","image":"worker:2.3","name":"job-runner"}},"scope":"local","time":1746413255,"timeNano":1746413255000000000}
+{"Type":"container","Action":"kill","Actor":{"ID":"aabbcc112233","Attributes":{"image":"redis:7","name":"cache","signal":"15"}},"scope":"local","time":1746413260,"timeNano":1746413260000000000}
+{"Type":"container","Action":"health_status: unhealthy","Actor":{"ID":"ghi789xyz","Attributes":{"image":"postgres:15","name":"db"}},"scope":"local","time":1746413270,"timeNano":1746413270000000000}
+{"Type":"container","Action":"health_status: healthy","Actor":{"ID":"ghi789xyz","Attributes":{"image":"postgres:15","name":"db"}},"scope":"local","time":1746413280,"timeNano":1746413280000000000}
+{"Type":"image","Action":"pull","Actor":{"ID":"nginx:1.25","Attributes":{"name":"nginx:1.25"}},"scope":"local","time":1746413290,"timeNano":1746413290000000000}
+{"Type":"network","Action":"connect","Actor":{"ID":"net123","Attributes":{"container":"app_web_1","name":"bridge"}},"scope":"local","time":1746413295,"timeNano":1746413295000000000}
