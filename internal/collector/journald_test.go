@@ -107,14 +107,25 @@ func TestExtractEmbeddedLevel(t *testing.T) {
 		msg  string
 		want event.Level
 	}{
+		// Structured logging
 		{`time="2026-05-06T18:02:51Z" level=error msg="failed to connect"`, event.Error},
 		{`time="2026-05-06T18:02:51Z" level=warn msg="retry"`, event.Warn},
+		{`{"level":"error","msg":"oops"}`, event.Error},
+		{`{"level":"warn","msg":"slow"}`, event.Warn},
+		// Cloudflared style
 		{`2026-05-06T18:02:49Z ERR failed to run datagram handler`, event.Error},
 		{`2026-05-06T18:02:49Z WRN failed to serve tunnel connection`, event.Warn},
 		{`2026-05-06T18:02:49Z INF Retrying connection`, event.Info},
+		// Kubernetes / k3s log format
+		{`E0506 18:13:42.801842   53335 kubelet.go:2618] "Housekeeping took longer"`, event.Error},
+		{`W0506 18:13:42.801842   53335 kubelet.go:2618] "Slow start"`, event.Warn},
+		{`I0506 18:13:42.801842   53335 kubelet.go:2618] "Starting"`, event.Info},
+		{`F0506 18:13:42.801842   53335 main.go:100] "fatal error"`, event.Error},
+		// Alertmanager forwarded alerts
+		{`Forwarded alert: CRITICAL: SystemLoadCritical`, event.Critical},
+		{`Forwarded alert: WARNING: DiskSpaceLow`, event.Warn},
+		// No embedded level
 		{`ordinary log line with no embedded level`, event.Info},
-		{`{"level":"error","msg":"oops"}`, event.Error},
-		{`{"level":"warn","msg":"slow"}`, event.Warn},
 	}
 	for _, c := range cases {
 		got := extractEmbeddedLevel(c.msg)

@@ -60,6 +60,22 @@ var infoNoisePatterns = []string{
 	// Kubernetes/k3s routine info chatter
 	"updated ClusterIP allocator",
 	"cidrallocator.go",
+	// GIN HTTP access log — suppress successful responses only (4xx/5xx pass through)
+	"| 200 |",
+	"| 201 |",
+	"| 204 |",
+	"| 304 |",
+	// Cron job execution lines (not failures — failures show at higher priority)
+	"cron.service: (root) CMD",
+	"cron.service: (CRON) CMD",
+	// Snap package scope lifecycle (very chatty, no incident signal)
+	"Started snap.",
+	"snap.go.go-",
+	"scope: Consumed ",
+	// Code-server / VS Code routine client reconnections
+	"The client has reconnected",
+	"[ExtensionHostConnection]",
+	"[ManagementConnection]",
 }
 
 // warnNoisePatterns suppress WARN-level events that are routine on most Linux servers.

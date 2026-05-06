@@ -6,11 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bruceowenga/wbts/pkg/event"
+)
+
+// k8s/k3s log lines begin with a severity letter + MMDD timestamp, e.g. "E0506 18:13:42".
+// E/F = Error/Fatal, W = Warning. I = Info (not elevated).
+var (
+	k8sErrorRe = regexp.MustCompile(`\b[EF]\d{4} \d{2}:\d{2}:\d{2}`)
+	k8sWarnRe  = regexp.MustCompile(`\bW\d{4} \d{2}:\d{2}:\d{2}`)
 )
 
 // JournaldCollector reads from systemd's journal via journalctl.
@@ -136,8 +144,16 @@ func parseJournaldEntry(data []byte) (event.Event, bool) {
 
 // extractEmbeddedLevel detects log severity markers that services write into the message
 // body when they route all output to journald at a single priority level.
-// Returns Info and false if no recognised pattern is found.
+// Only elevates — never demotes below what journald reported.
 func extractEmbeddedLevel(msg string) event.Level {
+	// Alertmanager forwarded alerts carry the severity in human-readable form
+	if strings.Contains(msg, "Forwarded alert: CRITICAL") {
+		return event.Critical
+	}
+	if strings.Contains(msg, "Forwarded alert: WARNING") || strings.Contains(msg, "Forwarded alert: WARN") {
+		return event.Warn
+	}
+
 	// Structured logging: level=error / level=warn (Logrus, Zap, Zerolog, Docker daemon)
 	lower := strings.ToLower(msg)
 	if strings.Contains(lower, "level=error") || strings.Contains(lower, `"level":"error"`) {
@@ -146,6 +162,7 @@ func extractEmbeddedLevel(msg string) event.Level {
 	if strings.Contains(lower, "level=warn") || strings.Contains(lower, `"level":"warn"`) {
 		return event.Warn
 	}
+
 	// Cloudflared / HashiCorp Vault style: timestamp + space + "ERR"/"WRN" + space
 	if strings.Contains(msg, " ERR ") {
 		return event.Error
@@ -153,6 +170,15 @@ func extractEmbeddedLevel(msg string) event.Level {
 	if strings.Contains(msg, " WRN ") {
 		return event.Warn
 	}
+
+	// Kubernetes / k3s log format: E0506 18:13:42 (error), W0506 (warning), F = fatal
+	if k8sErrorRe.MatchString(msg) {
+		return event.Error
+	}
+	if k8sWarnRe.MatchString(msg) {
+		return event.Warn
+	}
+
 	return event.Info
 }
 
