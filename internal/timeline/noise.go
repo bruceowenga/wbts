@@ -87,6 +87,8 @@ var infoNoisePatterns = []string{
 	"logger=bleve-backend",
 	"logger=infra.usagestats",
 	"logger=plugin.finder",
+	"logger=grafana.update.checker",
+	"logger=sqlstore.transactions",
 	// RTC wake alarm scheduling (routine periodic task)
 	"rtc-wake-scheduler",
 	"rtcwake:",
@@ -109,6 +111,78 @@ var infoNoisePatterns = []string{
 	`HTTP/1.1" 201`,
 	`HTTP/1.1" 204`,
 	`HTTP/1.1" 304`,
+	// ollama_exporter successful probe results (high volume; failures are kept via [error] prefix)
+	"[probe] ",
+	"[collector] Running collection",
+	// Prometheus TSDB routine maintenance (compaction, GC, block writes)
+	"source=compact.go",
+	"source=head.go",
+	"msg=\"write block ",
+	"msg=\"Head GC ",
+	"msg=\"compact blocks\"",
+	"msg=\"Deleting obsolete",
+	// snapd internal lifecycle (chatty during snap installs/updates)
+	"overlord.go:",
+	"daemon.go:",
+	"standby.go:",
+	"certmgr.go:",
+	"backends.go:",
+	"snapmgr.go:",
+	"patch.go:",
+	"cache.go:",
+	"api_snaps.go:",
+	"store_download.go:",
+	// systemd-logind hardware button watching (fires on every login/session)
+	"Watching system buttons on",
+	// dbus service activation (routine system bus operations)
+	"[system] Activating via systemd",
+	"[system] Successfully activated service",
+	// Tailscale network state change dumps
+	"control: NetInfo:",
+	// snap loop device mounts (capacity changes during snap install/update)
+	"detected capacity change from 0 to",
+	// AppArmor profile loads/replaces during snap operations
+	"apparmor=\"STATUS\" operation=\"profile_",
+	// Routine init.scope service starts/stops (Ubuntu background maintenance)
+	"Starting apt-news",
+	"Finished apt-news",
+	"apt-news.service: Deactivated",
+	"Starting esm-cache",
+	"Finished esm-cache",
+	"esm-cache.service: Deactivated",
+	"Starting update-notifier",
+	"Finished update-notifier",
+	"update-notifier-download.service: Deactivated",
+	"Starting packagekit",
+	"Finished packagekit",
+	"packagekit.service: Deactivated",
+	"Starting systemd-timedated",
+	"Finished systemd-timedated",
+	"timedated.service: Deactivated",
+	"Starting systemd-tmpfiles-clean",
+	"Finished systemd-tmpfiles-clean",
+	"systemd-tmpfiles-clean.service: Deactivated",
+	"Mounted snap-",           // snap squashfs mount announcements
+	"snap-snapd-",             // snapd snap specific
+	"snap-core",               // core snap mounts
+	// Syncthing routine NAT-PMP port acquisition attempts
+	"Failed to acquire",
+	// Grafana Alloy routine stats reporting
+	"msg=\"reporting Alloy stats\"",
+	"msg=\"usage report sent with success\"",
+	"msg=\"series GC completed\"",
+	// Launchpadlib cache cleanup (Ubuntu background task)
+	"launchpadlib-cache-clean",
+	// ModemManager routine hardware probing
+	"[base-manager] couldn't check support",
+	// User D-Bus session lifecycle
+	"Starting dbus.service - D-Bus User",
+	"AppArmor D-Bus mediation is enabled",
+	// Special user nobody warning (known config, appears on systemd rescans)
+	"Special user nobody configured, this is not safe",
+	// logind routine session tracking (the auth collector handles SSH/sudo signal)
+	"New session ",
+	"Started session-",
 }
 
 // warnNoisePatterns suppress WARN-level events that are routine on most Linux servers.
@@ -118,6 +192,9 @@ var warnNoisePatterns = []string{
 	// UFW broadcast/multicast blocks are constant background noise on any UFW-enabled server.
 	// Targeted connection blocks (TCP/UDP to specific ports) are NOT suppressed.
 	"[UFW BLOCK] IN=",
+	// carduka-scraper config permission warnings fire on every systemd daemon-reload/rescan
+	"carduka-scraper.timer is marked world-inaccessible",
+	"carduka-scraper.service is marked world-inaccessible",
 }
 
 // isNoise returns true if the event should be suppressed based on its level and summary.
