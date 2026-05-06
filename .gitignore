@@ -1,5 +1,5 @@
 # Build output
-wbts
+/wbts
 dist/
 
 # Planning docs (not for the repo)

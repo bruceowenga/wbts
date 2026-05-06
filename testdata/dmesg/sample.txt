@@ -1,0 +1,7 @@
+[    0.000000] Initializing cgroup subsys cpuset
+[  300.123456] oom-killer: task node,pid=14821,uid=1000 triggered OOM, killing process
+[  300.124001] Killed process 14821 (node) total-vm:2048000kB, anon-rss:1258496kB, file-rss:0kB, shmem-rss:0kB, UID:1000 pgtables:2456kB oom_score_adj:0
+[  300.130000] oom_reaper: reaped process 14821 (node), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB
+[  420.000000] EXT4-fs error (device sda1): ext4_validate_block_bitmap:401: comm kworker/u4:2: bg 42: bad block bitmap checksum
+[  421.000000] Buffer I/O error on dev sda1, logical block 0, async page read
+[  600.000000] WARNING: possible circular locking dependency detected

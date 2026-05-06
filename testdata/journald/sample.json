@@ -1,0 +1,6 @@
+{"__REALTIME_TIMESTAMP":"1746413233000000","MESSAGE":"nginx.service: Main process exited, code=killed, status=9/KILL","PRIORITY":"3","SYSLOG_IDENTIFIER":"systemd","_SYSTEMD_UNIT":"nginx.service","_TRANSPORT":"journal","UNIT":"nginx.service"}
+{"__REALTIME_TIMESTAMP":"1746413234000000","MESSAGE":"nginx.service: Failed with result 'signal'.","PRIORITY":"3","SYSLOG_IDENTIFIER":"systemd","_SYSTEMD_UNIT":"nginx.service","_TRANSPORT":"journal","UNIT":"nginx.service"}
+{"__REALTIME_TIMESTAMP":"1746413235000000","MESSAGE":"Failed to start A high performance web server and a reverse proxy server.","PRIORITY":"4","SYSLOG_IDENTIFIER":"systemd","_SYSTEMD_UNIT":"nginx.service","_TRANSPORT":"journal","UNIT":"nginx.service"}
+{"__REALTIME_TIMESTAMP":"1746413240000000","MESSAGE":"Started Network Time Synchronization.","PRIORITY":"6","SYSLOG_IDENTIFIER":"systemd","_SYSTEMD_UNIT":"systemd-timesyncd.service","_TRANSPORT":"journal"}
+{"__REALTIME_TIMESTAMP":"1746413300000000","MESSAGE":"kernel: Out of memory: Killed process 14821 (node) total-vm:2048000kB, anon-rss:1258496kB","PRIORITY":"2","SYSLOG_IDENTIFIER":"kernel","_TRANSPORT":"kernel"}
+{"__REALTIME_TIMESTAMP":"1746413400000000","MESSAGE":[115,115,104,100,58,32,101,114,114,111,114],"PRIORITY":"3","SYSLOG_IDENTIFIER":"sshd","_TRANSPORT":"journal"}
