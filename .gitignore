@@ -1,0 +1,22 @@
+# Build output
+wbts
+dist/
+
+# Planning docs (not for the repo)
+PLAN.md
+
+# Go
+*.test
+*.out
+vendor/
+coverage.out
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
