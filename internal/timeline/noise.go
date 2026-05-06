@@ -45,6 +45,21 @@ var infoNoisePatterns = []string{
 	"[RATELIMIT]",
 	// Docker internal DNS resolver retries
 	"[resolver] failed to query external DNS",
+	// Grafana routine internal operations (structured log lines at info level)
+	"logger=dashboard-service",
+	"logger=cleanup",
+	"logger=ngalert",
+	// k3s / etcd routine maintenance
+	"msg=\"COMPACT ",
+	"COMPACT compactRev=",
+	"COMPACT deleted",
+	// sysstat routine accounting
+	"sysstat-collect",
+	// Tailscale network checks
+	"netcheck: DetectCaptivePortal",
+	// Kubernetes/k3s routine info chatter
+	"updated ClusterIP allocator",
+	"cidrallocator.go",
 }
 
 // warnNoisePatterns suppress WARN-level events that are routine on most Linux servers.

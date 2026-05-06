@@ -78,8 +78,13 @@ func Build(ctx context.Context, collectors []event.Collector, opts event.Options
 		filtered = append(filtered, e)
 	}
 
+	// Collapse repeated errors from the same service into annotated single events.
+	// This prevents a service in a persistent error loop (e.g. cloudflared reconnects,
+	// Docker DNS retries) from flooding incident window detection.
+	deduped := deduplicate(filtered)
+
 	tl := &Timeline{
-		Events:         filtered,
+		Events:         deduped,
 		SkippedSources: skipped,
 	}
 	tl.detectIncidentWindows()
