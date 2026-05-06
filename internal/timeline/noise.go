@@ -74,6 +74,7 @@ var infoNoisePatterns = []string{
 	// Cron job execution lines (not failures — failures show at higher priority)
 	"cron.service: (root) CMD",
 	"cron.service: (CRON) CMD",
+	"(root) CMD",   // direct CRON syslog identifier (no service prefix)
 	// Snap package scope lifecycle (very chatty, no incident signal)
 	"Started snap.",
 	"snap.go.go-",
@@ -114,24 +115,31 @@ var infoNoisePatterns = []string{
 	// ollama_exporter successful probe results (high volume; failures are kept via [error] prefix)
 	"[probe] ",
 	"[collector] Running collection",
-	// Prometheus TSDB routine maintenance (compaction, GC, block writes)
+	// Prometheus TSDB routine maintenance (compaction, GC, block writes, checkpoints)
 	"source=compact.go",
 	"source=head.go",
+	"source=checkpoint.go",
 	"msg=\"write block ",
 	"msg=\"Head GC ",
 	"msg=\"compact blocks\"",
 	"msg=\"Deleting obsolete",
+	"msg=\"Creating checkpoint\"",
 	// snapd internal lifecycle (chatty during snap installs/updates)
 	"overlord.go:",
 	"daemon.go:",
 	"standby.go:",
 	"certmgr.go:",
 	"backends.go:",
+	"backend.go:",
 	"snapmgr.go:",
 	"patch.go:",
 	"cache.go:",
 	"api_snaps.go:",
 	"store_download.go:",
+	"taskrunner.go:",
+	"snapd.service: Deactivated",
+	"snapd.service: Scheduled restart",
+	"tmp-syscheck",
 	// systemd-logind hardware button watching (fires on every login/session)
 	"Watching system buttons on",
 	// dbus service activation (routine system bus operations)
@@ -144,27 +152,16 @@ var infoNoisePatterns = []string{
 	// AppArmor profile loads/replaces during snap operations
 	"apparmor=\"STATUS\" operation=\"profile_",
 	// Routine init.scope service starts/stops (Ubuntu background maintenance)
-	"Starting apt-news",
-	"Finished apt-news",
-	"apt-news.service: Deactivated",
-	"Starting esm-cache",
-	"Finished esm-cache",
-	"esm-cache.service: Deactivated",
-	"Starting update-notifier",
-	"Finished update-notifier",
-	"update-notifier-download.service: Deactivated",
-	"Starting packagekit",
-	"Finished packagekit",
-	"packagekit.service: Deactivated",
-	"Starting systemd-timedated",
-	"Finished systemd-timedated",
-	"timedated.service: Deactivated",
-	"Starting systemd-tmpfiles-clean",
-	"Finished systemd-tmpfiles-clean",
-	"systemd-tmpfiles-clean.service: Deactivated",
-	"Mounted snap-",           // snap squashfs mount announcements
-	"snap-snapd-",             // snapd snap specific
-	"snap-core",               // core snap mounts
+	"Starting apt-news", "Started apt-news", "Finished apt-news", "apt-news.service: Deactivated",
+	"Starting esm-cache", "Started esm-cache", "Finished esm-cache", "esm-cache.service: Deactivated",
+	"Starting update-notifier", "Finished update-notifier", "update-notifier-download.service: Deactivated",
+	"Starting packagekit", "Started packagekit", "Finished packagekit", "packagekit.service: Deactivated",
+	"Starting systemd-timedated", "Started systemd-timedated", "Finished systemd-timedated", "timedated.service: Deactivated",
+	"Starting systemd-tmpfiles-clean", "Finished systemd-tmpfiles-clean", "systemd-tmpfiles-clean.service: Deactivated",
+	"Starting snapd.service", "Started snapd.service", "Finished snapd.service",
+	"Mounted snap-",   // snap squashfs mount announcements
+	"snap-snapd-",     // snapd snap specific
+	"snap-core",       // core snap mounts
 	// Syncthing routine NAT-PMP port acquisition attempts
 	"Failed to acquire",
 	// Grafana Alloy routine stats reporting
@@ -177,7 +174,9 @@ var infoNoisePatterns = []string{
 	"[base-manager] couldn't check support",
 	// User D-Bus session lifecycle
 	"Starting dbus.service - D-Bus User",
+	"Started dbus.service - D-Bus User",
 	"AppArmor D-Bus mediation is enabled",
+	"Successfully activated service 'org.freedesktop",
 	// Special user nobody warning (known config, appears on systemd rescans)
 	"Special user nobody configured, this is not safe",
 	// logind routine session tracking (the auth collector handles SSH/sudo signal)
