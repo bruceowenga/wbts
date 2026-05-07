@@ -33,10 +33,21 @@ func (a *AuthCollector) Name() string { return "auth" }
 func (a *AuthCollector) Available() error {
 	f, err := os.Open(a.path)
 	if err != nil {
-		return fmt.Errorf("auth log not readable at %s: %w (try: sudo usermod -aG adm $USER)", a.path, err)
+		hint := authHint(a.path)
+		return fmt.Errorf("auth log not readable at %s: %w (%s)", a.path, err, hint)
 	}
 	f.Close()
 	return nil
+}
+
+// authHint returns a platform-appropriate fix suggestion.
+// On Debian/Ubuntu auth.log is readable by the adm group.
+// On RHEL/Fedora /var/log/secure is 600 root:root — adm group does not help.
+func authHint(path string) string {
+	if path == "/var/log/secure" {
+		return "try: sudo wbts ... OR sudo setfacl -m u:$USER:r /var/log/secure"
+	}
+	return "try: sudo usermod -aG adm $USER"
 }
 
 func (a *AuthCollector) Collect(ctx context.Context, opts event.Options) (<-chan event.Event, error) {
