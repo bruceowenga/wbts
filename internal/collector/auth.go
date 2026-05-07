@@ -40,18 +40,22 @@ func (a *AuthCollector) Available() error {
 }
 
 func (a *AuthCollector) Collect(ctx context.Context, opts event.Options) (<-chan event.Event, error) {
-	f, err := os.Open(a.path)
+	r, closers, err := multiFileReader(rotatedPaths(a.path))
 	if err != nil {
-		return nil, fmt.Errorf("auth: open log: %w", err)
+		return nil, fmt.Errorf("auth: open logs: %w", err)
 	}
 
 	ch := make(chan event.Event, 256)
 	go func() {
 		defer close(ch)
-		defer f.Close()
+		defer func() {
+			for _, c := range closers {
+				c.Close()
+			}
+		}()
 
 		year := opts.Since.Year()
-		events, err := parseAuthLog(f, opts.Since, opts.Until, year)
+		events, err := parseAuthLog(r, opts.Since, opts.Until, year)
 		if err != nil {
 			return
 		}

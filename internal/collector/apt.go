@@ -33,17 +33,21 @@ func (a *AptCollector) Available() error {
 }
 
 func (a *AptCollector) Collect(ctx context.Context, opts event.Options) (<-chan event.Event, error) {
-	f, err := os.Open(a.path)
+	r, closers, err := multiFileReader(rotatedPaths(a.path))
 	if err != nil {
-		return nil, fmt.Errorf("apt: open history: %w", err)
+		return nil, fmt.Errorf("apt: open logs: %w", err)
 	}
 
 	ch := make(chan event.Event, 64)
 	go func() {
 		defer close(ch)
-		defer f.Close()
+		defer func() {
+			for _, c := range closers {
+				c.Close()
+			}
+		}()
 
-		events, err := parseAptHistory(f, opts.Since, opts.Until)
+		events, err := parseAptHistory(r, opts.Since, opts.Until)
 		if err != nil {
 			return
 		}

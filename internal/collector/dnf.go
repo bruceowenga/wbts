@@ -46,9 +46,9 @@ func (d *DnfCollector) Available() error {
 }
 
 func (d *DnfCollector) Collect(ctx context.Context, opts event.Options) (<-chan event.Event, error) {
-	f, err := os.Open(d.path)
+	r, closers, err := multiFileReader(rotatedPaths(d.path))
 	if err != nil {
-		return nil, fmt.Errorf("dnf: open log: %w", err)
+		return nil, fmt.Errorf("dnf: open logs: %w", err)
 	}
 
 	// yum.log has no year in timestamps — infer from the since boundary
@@ -57,9 +57,13 @@ func (d *DnfCollector) Collect(ctx context.Context, opts event.Options) (<-chan 
 	ch := make(chan event.Event, 64)
 	go func() {
 		defer close(ch)
-		defer f.Close()
+		defer func() {
+			for _, c := range closers {
+				c.Close()
+			}
+		}()
 
-		events, err := parseDnfHistory(f, opts.Since, opts.Until, year)
+		events, err := parseDnfHistory(r, opts.Since, opts.Until, year)
 		if err != nil {
 			return
 		}
