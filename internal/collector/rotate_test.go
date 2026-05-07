@@ -100,7 +100,7 @@ func TestMultiFileReader_PlainAndGzip(t *testing.T) {
 	plain := filepath.Join(dir, "plain.log")
 	gz := filepath.Join(dir, "old.log.gz")
 
-	os.WriteFile(plain, []byte("line from plain\n"), 0644)
+	mustWriteFile(t, plain, "line from plain\n")
 	writeGzip(t, gz, "line from gz\n")
 
 	r, closers, err := multiFileReader([]string{gz, plain})
@@ -129,7 +129,7 @@ func TestMultiFileReader_PlainAndGzip(t *testing.T) {
 func TestMultiFileReader_UnreadableSkipped(t *testing.T) {
 	dir := t.TempDir()
 	plain := filepath.Join(dir, "auth.log")
-	os.WriteFile(plain, []byte("line1\n"), 0644)
+	mustWriteFile(t, plain, "line1\n")
 
 	// nonexistent file should be silently skipped
 	r, closers, err := multiFileReader([]string{"/nonexistent/missing.log", plain})
