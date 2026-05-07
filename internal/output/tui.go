@@ -165,8 +165,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f":
 			m.filter = (m.filter + 1) % (filterCritOnly + 1)
 			m.expanded = make(map[int]bool) // clear expansions on filter change
-			m.rebuildContent()
 			m.cursor = 0
+			m.rebuildContent() // rebuilds filteredItems + content for new filter
 			m.jumpToFirstEvent()
 
 		case "n":
@@ -216,6 +216,7 @@ func (m *tuiModel) moveCursor(delta int) {
 	for next >= 0 && next < len(m.filteredItems) {
 		if m.filteredItems[next].kind != itemSeparator {
 			m.cursor = next
+			m.rebuildContent() // cursor indicator is baked into content
 			m.scrollViewportToCursor()
 			return
 		}
@@ -228,6 +229,7 @@ func (m *tuiModel) jumpToFirstEvent() {
 	for i, item := range m.filteredItems {
 		if item.kind == itemEvent {
 			m.cursor = i
+			m.rebuildContent()
 			m.viewport.GotoTop()
 			return
 		}
@@ -238,6 +240,7 @@ func (m *tuiModel) jumpToLastEvent() {
 	for i := len(m.filteredItems) - 1; i >= 0; i-- {
 		if m.filteredItems[i].kind == itemEvent {
 			m.cursor = i
+			m.rebuildContent()
 			m.viewport.GotoBottom()
 			return
 		}
@@ -256,6 +259,7 @@ func (m *tuiModel) jumpToNextSeparator(dir int) {
 		}
 		if m.filteredItems[idx].kind == itemSeparator {
 			m.cursor = idx
+			m.rebuildContent()
 			m.scrollViewportToCursor()
 			return
 		}
