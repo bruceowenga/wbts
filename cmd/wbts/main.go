@@ -39,6 +39,7 @@ func newRootCmd() *cobra.Command {
 		asJSON    bool
 		summary   bool
 		force     bool
+		noTUI     bool
 	)
 
 	cmd := &cobra.Command{
@@ -103,6 +104,7 @@ Examples:
 				NoColor: noColor,
 				JSON:    asJSON,
 				Summary: summary,
+				NoTUI:   noTUI,
 			})
 		},
 	}
@@ -114,6 +116,7 @@ Examples:
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output events as JSON array")
 	cmd.Flags().BoolVar(&summary, "summary", false, "show only incident window summaries")
 	cmd.Flags().BoolVar(&force, "force", false, "allow time ranges exceeding 24h")
+	cmd.Flags().BoolVar(&noTUI, "no-tui", false, "disable interactive TUI, use plain output")
 	_ = cmd.MarkFlagRequired("since")
 
 	cmd.AddCommand(newCheckPermsCmd())
