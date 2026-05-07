@@ -1,0 +1,4 @@
+May  6 10:30:01 Updated: nginx-1.24.0-2.el7.x86_64
+May  6 10:30:01 Updated: curl-7.29.0-59.el7.x86_64
+May  6 11:00:01 Installed: docker-ce-26.0.0-1.el7.x86_64
+May  6 12:00:01 Erased: old-package-1.0.0-1.el7.x86_64

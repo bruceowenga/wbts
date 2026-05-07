@@ -1,0 +1,12 @@
+2026-05-06T10:30:00+0000 INFO --- logging initialized ---
+2026-05-06T10:30:01+0000 INFO Upgraded: nginx-1.24.0-2.fc40.x86_64
+2026-05-06T10:30:01+0000 INFO Upgraded: curl-8.6.0-1.fc40.x86_64
+2026-05-06T10:30:01+0000 INFO Upgraded: libssl-3.2.0-1.fc40.x86_64
+2026-05-06T11:00:00+0000 INFO --- logging initialized ---
+2026-05-06T11:00:01+0000 INFO Installed: docker-ce-26.0.0-1.fc40.x86_64
+2026-05-06T11:00:01+0000 INFO Installed: docker-ce-cli-26.0.0-1.fc40.x86_64
+2026-05-06T12:00:00+0000 INFO --- logging initialized ---
+2026-05-06T12:00:01+0000 INFO Erased: old-package-1.0.0-1.fc40.x86_64
+2026-05-06T17:49:51+0000 INFO --- logging initialized ---
+2026-05-06T17:49:51+0000 INFO Installed: go-1.22.0-1.fc40.x86_64
+2026-05-06T17:49:51+0000 INFO Installed: go-src-1.22.0-1.fc40.x86_64

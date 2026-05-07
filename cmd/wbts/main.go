@@ -89,6 +89,7 @@ Examples:
 				collector.NewDmesgCollector(),
 				collector.NewDockerCollector(),
 				collector.NewAptCollector(),
+				collector.NewDnfCollector(),
 				collector.NewAuthCollector(),
 			}
 
@@ -128,6 +129,7 @@ func newCheckPermsCmd() *cobra.Command {
 				collector.NewDmesgCollector(),
 				collector.NewDockerCollector(),
 				collector.NewAptCollector(),
+				collector.NewDnfCollector(),
 				collector.NewAuthCollector(),
 			}
 
