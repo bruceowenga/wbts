@@ -1,0 +1,60 @@
+{
+  "apiVersion": "v1",
+  "kind": "EventList",
+  "items": [
+    {
+      "involvedObject": {"kind": "Pod", "namespace": "default", "name": "nginx-7d9d8c-abc"},
+      "reason": "OOMKilling",
+      "message": "Container nginx was OOM killed",
+      "type": "Warning",
+      "count": 3,
+      "firstTimestamp": "2026-05-06T18:10:00Z",
+      "lastTimestamp": "2026-05-06T18:13:42Z"
+    },
+    {
+      "involvedObject": {"kind": "Pod", "namespace": "default", "name": "app-5b7c8d-xyz"},
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container",
+      "type": "Warning",
+      "count": 10,
+      "firstTimestamp": "2026-05-06T18:14:00Z",
+      "lastTimestamp": "2026-05-06T18:14:35Z"
+    },
+    {
+      "involvedObject": {"kind": "Pod", "namespace": "kube-system", "name": "coredns-abc123"},
+      "reason": "Started",
+      "message": "Started container coredns",
+      "type": "Normal",
+      "count": 1,
+      "firstTimestamp": "2026-05-06T18:05:00Z",
+      "lastTimestamp": "2026-05-06T18:05:00Z"
+    },
+    {
+      "involvedObject": {"kind": "Pod", "namespace": "default", "name": "old-pod-abc"},
+      "reason": "Killing",
+      "message": "Stopping container old-app",
+      "type": "Normal",
+      "count": 1,
+      "firstTimestamp": "2026-05-06T17:00:00Z",
+      "lastTimestamp": "2026-05-06T17:00:00Z"
+    },
+    {
+      "involvedObject": {"kind": "Node", "namespace": "", "name": "odin"},
+      "reason": "NodeNotReady",
+      "message": "Node odin status is now: NodeNotReady",
+      "type": "Warning",
+      "count": 1,
+      "firstTimestamp": "2026-05-06T17:13:30Z",
+      "lastTimestamp": "2026-05-06T17:13:30Z"
+    },
+    {
+      "involvedObject": {"kind": "Pod", "namespace": "monitoring", "name": "prometheus-0"},
+      "reason": "Unhealthy",
+      "message": "Liveness probe failed: Get http://10.0.0.5:9090/-/healthy: context deadline exceeded",
+      "type": "Warning",
+      "count": 5,
+      "firstTimestamp": "2026-05-06T17:20:00Z",
+      "lastTimestamp": "2026-05-06T17:20:27Z"
+    }
+  ]
+}
