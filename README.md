@@ -6,33 +6,22 @@ curl -fsSL https://raw.githubusercontent.com/bruceowenga/wbts/main/scripts/insta
 
 ```
 $ wbts --since 3h
-
-2026-05-06 18:13:42  [SERVICE]  ERRO  k3s.service: E0506 "Housekeeping took longer than expected"  ◄── FIRST FAULT?
-2026-05-06 18:14:13  [KERNEL ]  WARN  workqueue: pci_pme_list_scan hogged CPU for >10000us 128 times
-2026-05-06 18:14:35  [SERVICE]  ERRO  k3s.service: E0506 "Housekeeping took longer than expected"
-2026-05-06 18:14:39  [SERVICE]  CRIT  alertmanager-ntfy-bridge.service: Forwarded alert: CRITICAL: SystemLoadCritical
-2026-05-06 18:15:32  [SERVICE]  ERRO  cloudflared.service: ERR failed to run the datagram handler [×20]
-2026-05-06 18:20:44  [SERVICE]  INFO  docker.service: restarting container 890c1b29 (my-app:latest)
-2026-05-06 18:20:44  [DOCKER ]  WARN  container app_web_1 (my-app:latest) killed (code 137 — OOM or SIGKILL)
-2026-05-06 18:12:00  [PACKAGE]  WARN  apt upgrade: nginx (1.18.0 → 1.18.1), curl (7.81.0 → 7.82.0)
-2026-05-06 18:30:01  [AUTH   ]  INFO  sshd: Accepted publickey for bruce from 192.168.100.27 port 52341 ssh2
-
-▶ INCIDENT WINDOW: 18:13:42–18:14:39 (4 events — KERNEL, SERVICE)
 ```
 
-`wbts` correlates logs from journald, dmesg, Docker events, apt, auth, and cron into a
-single chronological timeline. Run it after an incident to reconstruct what happened
-without manually cross-referencing `journalctl`, `dmesg`, `docker events`, and `auth.log`.
+![wbts TUI showing a scrollable incident timeline with cursor on a k3s housekeeping error, incident window summary at the bottom](https://github.com/bruceowenga/wbts/assets/tui-screenshot.png)
+
+`wbts` correlates logs from journald, dmesg, Docker events, Kubernetes, apt/dnf, and auth
+into a single chronological timeline with an interactive TUI. Run it after an incident to
+reconstruct what happened without manually cross-referencing six different log sources.
 
 ---
 
 ## Installation
 
 ```bash
-# One-liner (once v0.1.0 is released)
 curl -fsSL https://raw.githubusercontent.com/bruceowenga/wbts/main/scripts/install.sh | bash
 
-# Build from source
+# Or build from source
 git clone https://github.com/bruceowenga/wbts
 cd wbts && go build -o wbts ./cmd/wbts
 ```
@@ -40,7 +29,7 @@ cd wbts && go build -o wbts ./cmd/wbts
 ## Usage
 
 ```bash
-# Last 2 hours
+# Last 2 hours — launches interactive TUI when stdout is a terminal
 wbts --since 2h
 
 # Specific time range
@@ -49,15 +38,35 @@ wbts --since "2026-05-05 02:00" --until "2026-05-05 04:00"
 # Filter to events involving a specific container
 wbts --since 1h --container app_web_1
 
-# Show only incident window summaries
+# Incident window summaries only (plain output)
 wbts --since 4h --summary
 
 # JSON output for piping to jq
 wbts --since 1h --json | jq '.[] | select(.Level >= 2)'
 
-# Check which log sources are accessible
+# Plain output without TUI (for scripts, CI, piping)
+wbts --since 2h --no-tui
+
+# Check which log sources are accessible on this system
 wbts check-perms
 ```
+
+## Interactive TUI
+
+When stdout is a terminal, `wbts` launches an interactive timeline viewer:
+
+| Key | Action |
+|---|---|
+| `↑` / `k` | Scroll up |
+| `↓` / `j` | Scroll down |
+| `e` / `Enter` | Expand / collapse raw log line |
+| `f` | Cycle level filter: All → Warn+ → Error+ → Crit |
+| `n` / `p` | Jump to next / previous incident window |
+| `g` / `G` | Jump to top / bottom |
+| `?` | Show help |
+| `q` / `Esc` | Quit |
+
+Plain output is always available via `--no-tui`, `--json`, `--no-color`, `--summary`, or piping.
 
 ## Collectors
 
@@ -65,14 +74,21 @@ wbts check-perms
 |---|---|---|
 | `journald` | `journalctl` | service starts/stops/crashes, systemd failures, embedded log levels |
 | `dmesg` | kernel ring buffer | OOM kills, kernel panics, disk I/O errors, CPU hogging |
-| `docker` | Docker socket API (`/events`) | container die/OOM/restart, health check failures, image pulls |
-| `apt` | `/var/log/apt/history.log` | package installs, upgrades, removals with version arrows |
-| `auth` | `/var/log/auth.log` | failed logins, accepted sessions, sudo commands, root sessions |
+| `docker` | Docker socket API | container die/OOM/restart, health check failures, image pulls |
+| `kubernetes` | `kubectl get events` | OOMKilling, BackOff, CrashLoopBackOff, NodeNotReady, Unhealthy |
+| `apt` | `/var/log/apt/history.log` + rotated | package installs, upgrades, removals (Debian/Ubuntu) |
+| `dnf` | `/var/log/dnf.rpm.log` + rotated | package installs, upgrades, removals (Fedora/RHEL/Rocky) |
+| `auth` | `/var/log/auth.log` + rotated | failed logins, accepted sessions, sudo commands, root sessions |
+
+All file-based collectors automatically read rotated log files (`.1`, `.2.gz`, date-based)
+so pre-crash events are captured even after a server restart.
 
 > **Docker events buffer:** The Docker events API stores events in an in-memory ring buffer
 > (~1024 events). On busy systems running k3s or many containers, events older than
-> 30–60 minutes may no longer be available. Journald fills the gap for older container
-> activity via the `journald` collector.
+> 30–60 minutes may not be available. Journald fills the gap for older container activity.
+
+> **Kubernetes events TTL:** k8s events have a default TTL of ~1 hour. Events older than
+> that may not be returned even if within your `--since` range.
 
 ## Permissions
 
@@ -82,9 +98,12 @@ wbts check-perms
 # Check what's accessible with your current user
 wbts check-perms
 
-# For full access without sudo, add yourself to these groups:
+# For full access without sudo (Debian/Ubuntu):
 sudo usermod -aG systemd-journal,adm,docker $USER
-# Then log out and back in (or: newgrp docker)
+
+# For /var/log/secure on Fedora/RHEL (600 root:root, adm group does not help):
+sudo setfacl -m u:$USER:r /var/log/secure
+# or just: sudo wbts --since 2h
 ```
 
 ## Embedded log level detection
@@ -101,6 +120,7 @@ in the message body. `wbts` detects and elevates these automatically:
 | `W0506 HH:MM:SS` | Kubernetes / k3s (klog) | `WARN` |
 | `[GIN] \| 5xx \|` | Gin HTTP framework (ollama, etc.) | `ERRO` |
 | `Forwarded alert: CRITICAL` | Alertmanager bridge | `CRIT` |
+| `msg="restarting container"` | Docker daemon | `WARN` |
 
 ## Contributing
 
