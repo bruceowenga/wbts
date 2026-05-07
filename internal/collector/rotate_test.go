@@ -9,6 +9,13 @@ import (
 	"testing"
 )
 
+func mustWriteFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // writeGzip creates a gzip-compressed file at path containing content.
 func writeGzip(t *testing.T, path, content string) {
 	t.Helper()
@@ -56,8 +63,8 @@ func TestRotatedPaths_DateBased(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "dnf.rpm.log")
 
-	os.WriteFile(filepath.Join(dir, "dnf.rpm.log"), []byte("x"), 0644)
-	os.WriteFile(filepath.Join(dir, "dnf.rpm.log-20260401"), []byte("x"), 0644)
+	mustWriteFile(t, filepath.Join(dir, "dnf.rpm.log"), "x")
+	mustWriteFile(t, filepath.Join(dir, "dnf.rpm.log-20260401"), "x")
 	writeGzip(t, filepath.Join(dir, "dnf.rpm.log-20260315.gz"), "x")
 
 	paths := rotatedPaths(base)
@@ -78,7 +85,7 @@ func TestRotatedPaths_DateBased(t *testing.T) {
 func TestRotatedPaths_MissingFileSkipped(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "auth.log")
-	os.WriteFile(base, []byte("x"), 0644)
+	mustWriteFile(t, base, "x")
 	// auth.log.1 does NOT exist — should be skipped silently
 
 	paths := rotatedPaths(base)
