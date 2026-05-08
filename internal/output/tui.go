@@ -90,6 +90,8 @@ type tuiModel struct {
 	content       string
 	width, height int
 	showHelp      bool
+	searchQuery   string // active text filter (empty = no filter)
+	searchActive  bool   // true while the user is typing a search query
 }
 
 func newTUIModel(tl *timeline.Timeline) tuiModel {
@@ -140,9 +142,47 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Search input mode intercepts most keys
+		if m.searchActive {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.searchActive = false
+				// First Esc exits input mode but keeps the query
+			case tea.KeyEnter:
+				m.searchActive = false
+			case tea.KeyBackspace, tea.KeyDelete:
+				if len(m.searchQuery) > 0 {
+					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+					m.cursor = 0
+					m.rebuildContent()
+					m.jumpToFirstEvent()
+				}
+			case tea.KeyRunes:
+				m.searchQuery += string(msg.Runes)
+				m.cursor = 0
+				m.rebuildContent()
+				m.jumpToFirstEvent()
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
-		case "q", "esc", "ctrl+c":
+		case "q", "ctrl+c":
 			return m, tea.Quit
+
+		case "esc":
+			if m.searchQuery != "" {
+				// Clear the query and rebuild
+				m.searchQuery = ""
+				m.cursor = 0
+				m.rebuildContent()
+				m.jumpToFirstEvent()
+			} else {
+				return m, tea.Quit
+			}
+
+		case "/":
+			m.searchActive = true
 
 		case "j", "down":
 			m.moveCursor(1)
@@ -266,6 +306,17 @@ func (m *tuiModel) jumpToNextSeparator(dir int) {
 	}
 }
 
+// matchesSearch returns true if the event matches the current search query.
+// Searches Summary and Source fields, case-insensitively.
+func (m *tuiModel) matchesSearch(e event.Event) bool {
+	if m.searchQuery == "" {
+		return true
+	}
+	q := strings.ToLower(m.searchQuery)
+	return strings.Contains(strings.ToLower(e.Summary), q) ||
+		strings.Contains(strings.ToLower(e.Source), q)
+}
+
 func abs(n int) int {
 	if n < 0 {
 		return -n
@@ -332,7 +383,7 @@ func (m *tuiModel) buildFilteredItems() []tuiItem {
 				end = len(m.tl.Events)
 			}
 			for j := iw.FirstFaultIndex; j < end; j++ {
-				if m.tl.Events[j].Level >= minLevel {
+				if m.tl.Events[j].Level >= minLevel && m.matchesSearch(m.tl.Events[j]) {
 					hasVisible = true
 					break
 				}
@@ -342,7 +393,7 @@ func (m *tuiModel) buildFilteredItems() []tuiItem {
 			}
 		}
 
-		if e.Level >= minLevel {
+		if e.Level >= minLevel && m.matchesSearch(e) {
 			items = append(items, tuiItem{kind: itemEvent, eventIndex: i, windowIndex: -1})
 		}
 	}
@@ -468,6 +519,11 @@ func (m tuiModel) statusLine() string {
 		return tuiStatusBar.Render("  ESC close help")
 	}
 
+	// Search input mode: show the query with a blinking cursor indicator
+	if m.searchActive {
+		return tuiStatusBar.Render(fmt.Sprintf("  /%s█", m.searchQuery))
+	}
+
 	// Current position: count event items up to cursor
 	pos := 0
 	total := 0
@@ -480,8 +536,13 @@ func (m tuiModel) statusLine() string {
 		}
 	}
 
-	hints := "↑↓ scroll  ·  e expand  ·  n/p incident  ·  f filter  ·  q quit  ·  ? help"
-	status := fmt.Sprintf("  %d/%d  ·  Filter: %s  ·  %s", pos, total, m.filter, hints)
+	searchInfo := ""
+	if m.searchQuery != "" {
+		searchInfo = fmt.Sprintf("  ·  /%s", m.searchQuery)
+	}
+
+	hints := "/ search  ·  ↑↓ scroll  ·  e expand  ·  n/p incident  ·  f filter  ·  q quit  ·  ? help"
+	status := fmt.Sprintf("  %d/%d  ·  Filter: %s%s  ·  %s", pos, total, m.filter, searchInfo, hints)
 	return tuiStatusBar.Render(status)
 }
 
@@ -503,10 +564,11 @@ const helpText = `wbts keyboard shortcuts
   G           jump to bottom
   e / Enter   expand / collapse raw log line
   f           cycle filter: All → Warn+ → Error+ → Crit
+  /           search (type to filter, Esc to clear)
   n           jump to next incident window
   p           jump to previous incident window
   ?           toggle this help
-  q / Esc     quit`
+  q           quit`
 
 func (m tuiModel) helpView() string {
 	box := tuiHelp.Render(helpText)

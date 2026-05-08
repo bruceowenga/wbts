@@ -335,6 +335,221 @@ func TestQuitReturnsCmd(t *testing.T) {
 	}
 }
 
+func TestSearchActivation(t *testing.T) {
+	m := newTestModel([]event.Event{
+		makeTestEvent(baseTime(), event.Error, "nginx error", ""),
+	}, nil)
+
+	if m.searchActive {
+		t.Error("searchActive should be false at init")
+	}
+
+	next, _ := m.Update(keyMsg('/'))
+	m = next.(tuiModel)
+	if !m.searchActive {
+		t.Error("'/' should activate search mode")
+	}
+}
+
+func TestSearchFiltersEvents(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Error, "nginx upstream error", ""),
+		makeTestEvent(base.Add(time.Second), event.Error, "k3s housekeeping failed", ""),
+		makeTestEvent(base.Add(2*time.Second), event.Warn, "cloudflared tunnel error", ""),
+	}
+	m := newTestModel(events, nil)
+
+	// Activate search and type "nginx"
+	next, _ := m.Update(keyMsg('/'))
+	m = next.(tuiModel)
+	for _, ch := range "nginx" {
+		next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = next.(tuiModel)
+	}
+
+	if m.searchQuery != "nginx" {
+		t.Fatalf("searchQuery = %q, want 'nginx'", m.searchQuery)
+	}
+
+	// Only the nginx event should be visible
+	eventCount := 0
+	for _, item := range m.filteredItems {
+		if item.kind == itemEvent {
+			eventCount++
+		}
+	}
+	if eventCount != 1 {
+		t.Errorf("search for 'nginx': got %d events, want 1", eventCount)
+	}
+	if !strings.Contains(m.content, "nginx") {
+		t.Error("content should contain the matching event")
+	}
+	if strings.Contains(m.content, "k3s") {
+		t.Error("content should not contain non-matching event")
+	}
+}
+
+func TestSearchCaseInsensitive(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Error, "NGINX upstream timeout", ""),
+		makeTestEvent(base.Add(time.Second), event.Error, "k3s error", ""),
+	}
+	m := newTestModel(events, nil)
+
+	next, _ := m.Update(keyMsg('/'))
+	m = next.(tuiModel)
+	for _, ch := range "nginx" { // lowercase search, uppercase summary
+		next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = next.(tuiModel)
+	}
+
+	eventCount := 0
+	for _, item := range m.filteredItems {
+		if item.kind == itemEvent {
+			eventCount++
+		}
+	}
+	if eventCount != 1 {
+		t.Errorf("case-insensitive search failed: got %d events, want 1", eventCount)
+	}
+}
+
+func TestSearchEscClearsQuery(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Error, "nginx error", ""),
+		makeTestEvent(base.Add(time.Second), event.Error, "k3s error", ""),
+	}
+	m := newTestModel(events, nil)
+
+	// Activate search and type a query
+	next, _ := m.Update(keyMsg('/'))
+	m = next.(tuiModel)
+	for _, ch := range "nginx" {
+		next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = next.(tuiModel)
+	}
+	if m.searchQuery != "nginx" {
+		t.Fatal("precondition: searchQuery should be 'nginx'")
+	}
+
+	// Esc should exit search mode but keep the query
+	next, _ = m.Update(keySpecial(tea.KeyEsc))
+	m = next.(tuiModel)
+	if m.searchActive {
+		t.Error("Esc should deactivate search mode")
+	}
+	if m.searchQuery != "nginx" {
+		t.Error("first Esc should keep query (just exit input mode)")
+	}
+
+	// Second Esc should clear the query
+	next, _ = m.Update(keySpecial(tea.KeyEsc))
+	m = next.(tuiModel)
+	if m.searchQuery != "" {
+		t.Errorf("second Esc should clear query, got %q", m.searchQuery)
+	}
+
+	// All events should be visible again
+	eventCount := 0
+	for _, item := range m.filteredItems {
+		if item.kind == itemEvent {
+			eventCount++
+		}
+	}
+	if eventCount != 2 {
+		t.Errorf("after clearing search, got %d events, want 2", eventCount)
+	}
+}
+
+func TestSearchBackspace(t *testing.T) {
+	m := newTestModel([]event.Event{
+		makeTestEvent(baseTime(), event.Error, "nginx error", ""),
+	}, nil)
+
+	next, _ := m.Update(keyMsg('/'))
+	m = next.(tuiModel)
+	for _, ch := range "ngin" {
+		next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = next.(tuiModel)
+	}
+	if m.searchQuery != "ngin" {
+		t.Fatalf("precondition: searchQuery = %q, want 'ngin'", m.searchQuery)
+	}
+
+	next, _ = m.Update(keySpecial(tea.KeyBackspace))
+	m = next.(tuiModel)
+	if m.searchQuery != "ngi" {
+		t.Errorf("backspace: searchQuery = %q, want 'ngi'", m.searchQuery)
+	}
+}
+
+func TestSearchCombinedWithLevelFilter(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Info, "nginx info", ""),
+		makeTestEvent(base.Add(time.Second), event.Error, "nginx error", ""),
+		makeTestEvent(base.Add(2*time.Second), event.Error, "k3s error", ""),
+	}
+	m := newTestModel(events, nil)
+
+	// Set level filter to Error+
+	next, _ := m.Update(keyMsg('f')) // Warn+
+	m = next.(tuiModel)
+	next, _ = m.Update(keyMsg('f')) // Error+
+	m = next.(tuiModel)
+
+	// Now search for nginx
+	next, _ = m.Update(keyMsg('/'))
+	m = next.(tuiModel)
+	for _, ch := range "nginx" {
+		next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = next.(tuiModel)
+	}
+
+	// Should see only: nginx error (Info nginx is filtered by level; k3s filtered by search)
+	eventCount := 0
+	for _, item := range m.filteredItems {
+		if item.kind == itemEvent {
+			eventCount++
+		}
+	}
+	if eventCount != 1 {
+		t.Errorf("combined filter: got %d events, want 1 (nginx error only)", eventCount)
+	}
+}
+
+func TestSearchSourceField(t *testing.T) {
+	base := baseTime()
+	// Events with different sources
+	e1 := makeTestEvent(base, event.Error, "connection timeout", "")
+	e1.Source = "nginx"
+	e2 := makeTestEvent(base.Add(time.Second), event.Error, "connection timeout", "")
+	e2.Source = "postgres"
+
+	m := newTestModel([]event.Event{e1, e2}, nil)
+
+	next, _ := m.Update(keyMsg('/'))
+	m = next.(tuiModel)
+	for _, ch := range "nginx" {
+		next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = next.(tuiModel)
+	}
+
+	// Search should match on Source field too
+	eventCount := 0
+	for _, item := range m.filteredItems {
+		if item.kind == itemEvent {
+			eventCount++
+		}
+	}
+	if eventCount != 1 {
+		t.Errorf("source search: got %d events, want 1 (nginx source only)", eventCount)
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
