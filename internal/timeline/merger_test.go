@@ -192,3 +192,110 @@ func TestBuild_UnavailableCollectorIsSkipped(t *testing.T) {
 type errUnavailable string
 
 func (e errUnavailable) Error() string { return string(e) }
+
+func TestBuildStreaming_DeliversProgressiveUpdates(t *testing.T) {
+	base := time.Now()
+
+	// Two collectors: first finishes instantly, second has a small delay
+	fast := &fakeCollector{name: "fast", events: []event.Event{
+		makeEvent(base, event.Error, event.Kernel, "oom kill"),
+		makeEvent(base.Add(5*time.Second), event.Error, event.Service, "service failed"),
+		makeEvent(base.Add(10*time.Second), event.Error, event.Container, "container died"),
+	}}
+	slow := &fakeCollector{name: "slow", events: []event.Event{
+		makeEvent(base.Add(time.Minute), event.Warn, event.Service, "slow event"),
+	}}
+
+	opts := event.Options{Since: base.Add(-time.Minute), Until: base.Add(2 * time.Minute)}
+	ctx := context.Background()
+
+	progressCh := BuildStreaming(ctx, []event.Collector{fast, slow}, opts)
+
+	var updates []ProgressUpdate
+	for u := range progressCh {
+		updates = append(updates, u)
+	}
+
+	// Should receive one update per collector completing
+	if len(updates) < 2 {
+		t.Fatalf("expected at least 2 updates, got %d", len(updates))
+	}
+
+	// Final update must be marked Done
+	last := updates[len(updates)-1]
+	if !last.Done {
+		t.Error("last update should have Done=true")
+	}
+
+	// Final timeline should include events from both collectors
+	if len(last.Timeline.Events) == 0 {
+		t.Error("final timeline should have events")
+	}
+
+	// CollectorStates should be populated
+	if len(last.CollectorStates) == 0 {
+		t.Error("CollectorStates should be non-empty")
+	}
+}
+
+func TestBuildStreaming_SkippedCollectorReflectedInStates(t *testing.T) {
+	base := time.Now()
+
+	available := &fakeCollector{name: "good", events: []event.Event{
+		makeEvent(base, event.Error, event.Kernel, "error"),
+	}}
+	unavailable := &fakeCollector{name: "bad", avail: errUnavailable("no permission")}
+
+	opts := event.Options{Since: base.Add(-time.Minute), Until: base.Add(time.Minute)}
+	progressCh := BuildStreaming(context.Background(), []event.Collector{available, unavailable}, opts)
+
+	var last ProgressUpdate
+	for u := range progressCh {
+		last = u
+	}
+
+	if _, ok := last.Timeline.SkippedSources["bad"]; !ok {
+		t.Error("unavailable collector should appear in SkippedSources")
+	}
+
+	var foundBad bool
+	for _, s := range last.CollectorStates {
+		if s.Name == "bad" && s.Error != nil {
+			foundBad = true
+		}
+	}
+	if !foundBad {
+		t.Error("bad collector should appear in CollectorStates with an error")
+	}
+}
+
+func TestBuildStreaming_EachUpdateHasMoreEvents(t *testing.T) {
+	base := time.Now()
+
+	c1 := &fakeCollector{name: "c1", events: []event.Event{
+		makeEvent(base, event.Error, event.Service, "c1 error"),
+		makeEvent(base.Add(time.Second), event.Error, event.Service, "c1 error 2"),
+		makeEvent(base.Add(2*time.Second), event.Error, event.Service, "c1 error 3"),
+	}}
+	c2 := &fakeCollector{name: "c2", events: []event.Event{
+		makeEvent(base.Add(time.Minute), event.Error, event.Kernel, "c2 error"),
+		makeEvent(base.Add(time.Minute+time.Second), event.Error, event.Kernel, "c2 error 2"),
+		makeEvent(base.Add(time.Minute+2*time.Second), event.Error, event.Kernel, "c2 error 3"),
+	}}
+
+	opts := event.Options{Since: base.Add(-time.Minute), Until: base.Add(2 * time.Minute)}
+	progressCh := BuildStreaming(context.Background(), []event.Collector{c1, c2}, opts)
+
+	var counts []int
+	for u := range progressCh {
+		counts = append(counts, len(u.Timeline.Events))
+	}
+
+	if len(counts) < 2 {
+		t.Fatalf("expected at least 2 updates, got %d", len(counts))
+	}
+	// Final count should include all events from both collectors
+	if counts[len(counts)-1] < 6 {
+		t.Errorf("final event count = %d, want at least 6", counts[len(counts)-1])
+	}
+}

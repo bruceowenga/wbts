@@ -78,20 +78,26 @@ type tuiItem struct {
 	windowIndex int // index into tl.IncidentWindows; -1 for events
 }
 
+// progressMsg wraps a ProgressUpdate received from the streaming channel.
+type progressMsg timeline.ProgressUpdate
+
 // tuiModel is the bubbletea model.
 type tuiModel struct {
-	tl            *timeline.Timeline
-	viewport      viewport.Model
-	ready         bool
-	cursor        int
-	expanded      map[int]bool // filteredItems index → raw expanded
-	filter        levelFilter
-	filteredItems []tuiItem
-	content       string
-	width, height int
-	showHelp      bool
-	searchQuery   string // active text filter (empty = no filter)
-	searchActive  bool   // true while the user is typing a search query
+	tl              *timeline.Timeline
+	viewport        viewport.Model
+	ready           bool
+	cursor          int
+	expanded        map[int]bool // filteredItems index → raw expanded
+	filter          levelFilter
+	filteredItems   []tuiItem
+	content         string
+	width, height   int
+	showHelp        bool
+	searchQuery     string // active text filter (empty = no filter)
+	searchActive    bool   // true while the user is typing a search query
+	progressCh      <-chan timeline.ProgressUpdate
+	collectorStates []timeline.CollectorState
+	loading         bool // true until all collectors have finished
 }
 
 func newTUIModel(tl *timeline.Timeline) tuiModel {
@@ -101,7 +107,6 @@ func newTUIModel(tl *timeline.Timeline) tuiModel {
 		filter:   filterAll,
 	}
 	m.rebuildContent()
-	// Start cursor on the first event, not the first item (which may be a separator)
 	for i, item := range m.filteredItems {
 		if item.kind == itemEvent {
 			m.cursor = i
@@ -111,9 +116,35 @@ func newTUIModel(tl *timeline.Timeline) tuiModel {
 	return m
 }
 
+// newStreamingTUIModel creates a model that populates itself from a progress channel.
+func newStreamingTUIModel(ch <-chan timeline.ProgressUpdate) tuiModel {
+	m := tuiModel{
+		tl:         &timeline.Timeline{SkippedSources: map[string]error{}},
+		expanded:   make(map[int]bool),
+		filter:     filterAll,
+		progressCh: ch,
+		loading:    true,
+	}
+	m.rebuildContent()
+	return m
+}
+
+// awaitProgress returns a Cmd that reads the next ProgressUpdate from the channel.
+func awaitProgress(ch <-chan timeline.ProgressUpdate) tea.Cmd {
+	return func() tea.Msg {
+		update, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return progressMsg(update)
+	}
+}
+
 // RunTUI launches the bubbletea program using the alternate screen buffer.
-func RunTUI(tl *timeline.Timeline) error {
-	m := newTUIModel(tl)
+// It accepts a streaming progress channel from BuildStreaming, showing events
+// as each collector finishes rather than waiting for all to complete.
+func RunTUI(ch <-chan timeline.ProgressUpdate) error {
+	m := newStreamingTUIModel(ch)
 	p := tea.NewProgram(m,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
@@ -122,12 +153,27 @@ func RunTUI(tl *timeline.Timeline) error {
 	return err
 }
 
-// Init implements tea.Model. No startup commands needed.
-func (m tuiModel) Init() tea.Cmd { return nil }
+// Init implements tea.Model — starts listening on the progress channel.
+func (m tuiModel) Init() tea.Cmd {
+	if m.progressCh != nil {
+		return awaitProgress(m.progressCh)
+	}
+	return nil
+}
 
 // Update implements tea.Model.
 func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case progressMsg:
+		m.tl = msg.Timeline
+		m.collectorStates = msg.CollectorStates
+		m.loading = !msg.Done
+		m.rebuildContent()
+		if !msg.Done {
+			return m, awaitProgress(m.progressCh)
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -509,9 +555,27 @@ func (m tuiModel) headerLine() string {
 		parts = append(parts, fmt.Sprintf("%d incident windows", len(m.tl.IncidentWindows)))
 	}
 	if len(m.tl.SkippedSources) > 0 {
-		parts = append(parts, fmt.Sprintf("%d sources unavailable", len(m.tl.SkippedSources)))
+		parts = append(parts, fmt.Sprintf("%d unavailable", len(m.tl.SkippedSources)))
 	}
-	return tuiHeader.Render("wbts — " + strings.Join(parts, " · "))
+
+	header := "wbts — " + strings.Join(parts, " · ")
+
+	// Show per-collector status while loading
+	if m.loading && len(m.collectorStates) > 0 {
+		var statuses []string
+		for _, s := range m.collectorStates {
+			if s.Error != nil {
+				statuses = append(statuses, s.Name+" ✗")
+			} else if s.Done {
+				statuses = append(statuses, s.Name+" ✓")
+			} else {
+				statuses = append(statuses, s.Name+" ⟳")
+			}
+		}
+		header += "   " + strings.Join(statuses, "  ")
+	}
+
+	return tuiHeader.Render(header)
 }
 
 func (m tuiModel) statusLine() string {

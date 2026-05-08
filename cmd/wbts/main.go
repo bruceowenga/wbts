@@ -95,17 +95,25 @@ Examples:
 				collector.NewAuthCollector(),
 			}
 
-			tl, err := timeline.Build(context.Background(), collectors, opts)
-			if err != nil {
-				return fmt.Errorf("build timeline: %w", err)
-			}
-
-			return output.Render(os.Stdout, tl, output.Options{
+			renderOpts := output.Options{
 				NoColor: noColor,
 				JSON:    asJSON,
 				Summary: summary,
 				NoTUI:   noTUI,
-			})
+			}
+
+			// TUI path: stream events as each collector finishes
+			if output.ShouldUseTUI(os.Stdout, renderOpts) {
+				progressCh := timeline.BuildStreaming(context.Background(), collectors, opts)
+				return output.RunTUI(progressCh)
+			}
+
+			// Plain renderer path: wait for all collectors before rendering
+			tl, err := timeline.Build(context.Background(), collectors, opts)
+			if err != nil {
+				return fmt.Errorf("build timeline: %w", err)
+			}
+			return output.Render(os.Stdout, tl, renderOpts)
 		},
 	}
 

@@ -46,11 +46,8 @@ func Render(w io.Writer, tl *timeline.Timeline, opts Options) error {
 		return renderJSON(w, tl)
 	}
 
-	// Launch TUI when running interactively. All fallback paths (piped output,
-	// --no-color, --summary, --no-tui) use the plain renderer below.
-	if !opts.NoTUI && !opts.NoColor && !opts.Summary && isTTY(w) {
-		return RunTUI(tl)
-	}
+	// TUI is now launched from main.go via RunTUI(BuildStreaming(...)).
+	// Render is only called for the plain renderer path.
 
 	// Build a set of first-fault event indices for O(1) lookup during render
 	firstFaults := make(map[int]bool)
@@ -146,6 +143,12 @@ func renderJSON(w io.Writer, tl *timeline.Timeline) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(tl.Events)
+}
+
+// ShouldUseTUI returns true when the TUI should be launched instead of the
+// plain renderer. Used by main.go to decide which path to take.
+func ShouldUseTUI(w io.Writer, opts Options) bool {
+	return !opts.NoTUI && !opts.NoColor && !opts.Summary && !opts.JSON && isTTY(w)
 }
 
 // isTTY returns true when w is an *os.File connected to a real terminal.

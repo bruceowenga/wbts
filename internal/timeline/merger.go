@@ -29,6 +29,21 @@ type Timeline struct {
 	SkippedSources  map[string]error
 }
 
+// CollectorState records whether a collector has completed and any error it encountered.
+type CollectorState struct {
+	Name  string
+	Done  bool
+	Error error // nil = completed successfully; non-nil = skipped or failed
+}
+
+// ProgressUpdate is emitted on the BuildStreaming channel each time a collector
+// finishes. The Timeline is a fully-processed snapshot of all events collected so far.
+type ProgressUpdate struct {
+	Timeline        *Timeline
+	CollectorStates []CollectorState
+	Done            bool // true on the final update (all collectors finished)
+}
+
 // Build runs all available collectors concurrently, merges their output,
 // applies noise filtering, and annotates incident windows.
 func Build(ctx context.Context, collectors []event.Collector, opts event.Options) (*Timeline, error) {
@@ -42,7 +57,6 @@ func Build(ctx context.Context, collectors []event.Collector, opts event.Options
 		}
 	}
 
-	// Fan out to all active collectors concurrently
 	channels := make([]<-chan event.Event, len(active))
 	for i, c := range active {
 		ch, err := c.Collect(ctx, opts)
@@ -53,7 +67,6 @@ func Build(ctx context.Context, collectors []event.Collector, opts event.Options
 		channels[i] = ch
 	}
 
-	// Drain all channels — bounded by the 24h limit enforced in main
 	var raw []event.Event
 	for _, ch := range channels {
 		if ch == nil {
@@ -64,22 +77,108 @@ func Build(ctx context.Context, collectors []event.Collector, opts event.Options
 		}
 	}
 
+	return processRaw(raw, skipped), nil
+}
+
+// BuildStreaming fans out to all collectors concurrently and sends a ProgressUpdate
+// on the returned channel each time any single collector finishes. Each update
+// contains a fully-processed Timeline snapshot of all events collected so far.
+// The channel is closed after the final update (Done=true).
+func BuildStreaming(ctx context.Context, collectors []event.Collector, opts event.Options) <-chan ProgressUpdate {
+	out := make(chan ProgressUpdate, len(collectors)+1)
+
+	go func() {
+		defer close(out)
+
+		skipped := make(map[string]error)
+		states := make([]CollectorState, 0, len(collectors))
+		var active []event.Collector
+
+		for _, c := range collectors {
+			if err := c.Available(); err != nil {
+				skipped[c.Name()] = err
+				states = append(states, CollectorState{Name: c.Name(), Done: true, Error: err})
+			} else {
+				active = append(active, c)
+				states = append(states, CollectorState{Name: c.Name(), Done: false})
+			}
+		}
+
+		if len(active) == 0 {
+			out <- ProgressUpdate{
+				Timeline:        processRaw(nil, skipped),
+				CollectorStates: copyStates(states),
+				Done:            true,
+			}
+			return
+		}
+
+		type result struct {
+			name   string
+			events []event.Event
+			err    error
+		}
+		results := make(chan result, len(active))
+
+		for _, c := range active {
+			c := c
+			go func() {
+				ch, err := c.Collect(ctx, opts)
+				if err != nil {
+					results <- result{name: c.Name(), err: err}
+					return
+				}
+				var events []event.Event
+				for e := range ch {
+					events = append(events, e)
+				}
+				results <- result{name: c.Name(), events: events}
+			}()
+		}
+
+		var accumulated []event.Event
+		for i := 0; i < len(active); i++ {
+			r := <-results
+
+			// Update state for this collector
+			for j := range states {
+				if states[j].Name == r.name {
+					states[j].Done = true
+					states[j].Error = r.err
+					break
+				}
+			}
+			if r.err != nil {
+				skipped[r.name] = r.err
+			} else {
+				accumulated = append(accumulated, r.events...)
+			}
+
+			out <- ProgressUpdate{
+				Timeline:        processRaw(accumulated, skipped),
+				CollectorStates: copyStates(states),
+				Done:            i == len(active)-1,
+			}
+		}
+	}()
+
+	return out
+}
+
+// processRaw applies sorting, noise filtering, deduplication, and incident window
+// detection to a raw event slice. Shared between Build and BuildStreaming.
+func processRaw(raw []event.Event, skipped map[string]error) *Timeline {
 	sort.Slice(raw, func(i, j int) bool {
 		return raw[i].Timestamp.Before(raw[j].Timestamp)
 	})
 
-	// Suppress known-routine events. ERROR and CRITICAL always pass through.
-	filtered := raw[:0]
+	filtered := make([]event.Event, 0, len(raw))
 	for _, e := range raw {
-		if isNoise(e.Level, e.Summary) {
-			continue
+		if !isNoise(e.Level, e.Summary) {
+			filtered = append(filtered, e)
 		}
-		filtered = append(filtered, e)
 	}
 
-	// Collapse repeated errors from the same service into annotated single events.
-	// This prevents a service in a persistent error loop (e.g. cloudflared reconnects,
-	// Docker DNS retries) from flooding incident window detection.
 	deduped := deduplicate(filtered)
 
 	tl := &Timeline{
@@ -87,7 +186,13 @@ func Build(ctx context.Context, collectors []event.Collector, opts event.Options
 		SkippedSources: skipped,
 	}
 	tl.detectIncidentWindows()
-	return tl, nil
+	return tl
+}
+
+func copyStates(states []CollectorState) []CollectorState {
+	cp := make([]CollectorState, len(states))
+	copy(cp, states)
+	return cp
 }
 
 // detectIncidentWindows scans the sorted event list for dense clusters of
