@@ -1,0 +1,22 @@
+# Maintainer: Bruce Owenga <bruceowenga@gmail.com>
+pkgname=wbts-bin
+pkgver=0.2.5
+pkgrel=1
+pkgdesc='Forensic incident timeline builder for Linux/Docker systems — correlates journald, dmesg, Docker, Kubernetes, apt/dnf, and auth logs into a single incident timeline'
+arch=('x86_64' 'aarch64')
+url='https://github.com/bruceowenga/wbts'
+license=('MIT')
+provides=('wbts')
+conflicts=('wbts')
+
+source_x86_64=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/bruceowenga/wbts/releases/download/v${pkgver}/wbts_${pkgver}_linux_amd64.tar.gz")
+source_aarch64=("${pkgname}-${pkgver}-aarch64.tar.gz::https://github.com/bruceowenga/wbts/releases/download/v${pkgver}/wbts_${pkgver}_linux_arm64.tar.gz")
+
+sha256sums_x86_64=('49d3a8a8d3f1c3f211518e68f5f23cddfb5aa419e3565b4737ca1e5d31cb4abc')
+sha256sums_aarch64=('f82ae1df35cd9fbfd459b95a3ece90c2bfa9568e91fdd870a0979f873cf89d22')
+
+package() {
+    install -Dm755 "${srcdir}/wbts"      "${pkgdir}/usr/bin/wbts"
+    install -Dm644 "${srcdir}/README.md" "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+    install -Dm644 "${srcdir}/LICENSE"   "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
