@@ -550,6 +550,137 @@ func TestSearchSourceField(t *testing.T) {
 	}
 }
 
+func TestServiceColorConsistency(t *testing.T) {
+	// Same service name must always return the same color
+	c1 := tuiServiceColor("cloudflared")
+	c2 := tuiServiceColor("cloudflared")
+	if c1 != c2 {
+		t.Errorf("tuiServiceColor is not deterministic: %v != %v", c1, c2)
+	}
+
+	// Different service names should return colors from the palette
+	colors := map[string]bool{}
+	services := []string{"nginx", "postgres", "redis", "docker", "k3s", "cloudflared", "grafana", "prometheus"}
+	for _, svc := range services {
+		colors[string(tuiServiceColor(svc))] = true
+	}
+	// Should use multiple colors (not all the same)
+	if len(colors) < 2 {
+		t.Error("all services got the same color — hash is not working")
+	}
+}
+
+func TestExtractServiceName(t *testing.T) {
+	cases := []struct {
+		summary string
+		want    string
+	}{
+		{"cloudflared.service: ERR failed", "cloudflared"},
+		{"k3s.service: E0506 housekeeping", "k3s"},
+		{"docker.service: level=error msg=...", "docker"},
+		{"session-182.scope: odin : COMMAND=/bin/bash", "session-182"},
+		{"no service prefix here", ""},
+	}
+	for _, c := range cases {
+		got := extractServiceName(c.summary)
+		if got != c.want {
+			t.Errorf("extractServiceName(%q) = %q, want %q", c.summary, got, c.want)
+		}
+	}
+}
+
+func TestDetailPopupOpens(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Error, "nginx error", "full raw log line for nginx"),
+		makeTestEvent(base.Add(time.Second), event.Error, "k3s error", "full raw log line for k3s"),
+	}
+	m := newTestModel(events, nil)
+
+	if m.detailOpen {
+		t.Error("detailOpen should be false at init")
+	}
+
+	// Enter should open the detail popup
+	next, _ := m.Update(keySpecial(tea.KeyEnter))
+	m = next.(tuiModel)
+	if !m.detailOpen {
+		t.Error("Enter should open the detail popup")
+	}
+}
+
+func TestDetailPopupClosesOnEsc(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Error, "nginx error", "raw log"),
+	}
+	m := newTestModel(events, nil)
+
+	next, _ := m.Update(keySpecial(tea.KeyEnter))
+	m = next.(tuiModel)
+	if !m.detailOpen {
+		t.Fatal("precondition: detail should be open")
+	}
+
+	next, _ = m.Update(keySpecial(tea.KeyEsc))
+	m = next.(tuiModel)
+	if m.detailOpen {
+		t.Error("Esc should close the detail popup")
+	}
+}
+
+func TestDetailPopupNavigatesEvents(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Error, "event 0", "raw 0"),
+		makeTestEvent(base.Add(time.Second), event.Error, "event 1", "raw 1"),
+		makeTestEvent(base.Add(2*time.Second), event.Error, "event 2", "raw 2"),
+	}
+	m := newTestModel(events, nil)
+
+	// Open detail on event 0
+	next, _ := m.Update(keySpecial(tea.KeyEnter))
+	m = next.(tuiModel)
+	if m.detailIdx != 0 {
+		t.Fatalf("detailIdx = %d, want 0", m.detailIdx)
+	}
+
+	// ] moves to next event
+	next, _ = m.Update(keyMsg(']'))
+	m = next.(tuiModel)
+	if m.detailIdx != 1 {
+		t.Errorf("after ]: detailIdx = %d, want 1", m.detailIdx)
+	}
+
+	// [ moves back
+	next, _ = m.Update(keyMsg('['))
+	m = next.(tuiModel)
+	if m.detailIdx != 0 {
+		t.Errorf("after [: detailIdx = %d, want 0", m.detailIdx)
+	}
+}
+
+func TestDetailPopupWrapsNavigation(t *testing.T) {
+	base := baseTime()
+	events := []event.Event{
+		makeTestEvent(base, event.Error, "e0", "raw 0"),
+		makeTestEvent(base.Add(time.Second), event.Error, "e1", "raw 1"),
+	}
+	m := newTestModel(events, nil)
+
+	next, _ := m.Update(keySpecial(tea.KeyEnter))
+	m = next.(tuiModel)
+
+	// ] from last event wraps to first
+	next, _ = m.Update(keyMsg(']'))
+	m = next.(tuiModel) // now at idx 1
+	next, _ = m.Update(keyMsg(']'))
+	m = next.(tuiModel) // should wrap to 0
+	if m.detailIdx != 0 {
+		t.Errorf("wrap forward: detailIdx = %d, want 0", m.detailIdx)
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

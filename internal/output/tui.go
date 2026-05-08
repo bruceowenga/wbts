@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -11,6 +12,41 @@ import (
 	"github.com/bruceowenga/wbts/internal/timeline"
 	"github.com/bruceowenga/wbts/pkg/event"
 )
+
+// serviceColorPalette is a set of terminal colors that don't conflict with
+// severity indicators (red=9, yellow=3). Each service name is hashed to one.
+var serviceColorPalette = []lipgloss.Color{
+	"2",  // green
+	"4",  // blue
+	"5",  // magenta
+	"10", // bright green
+	"12", // bright blue
+	"13", // bright magenta
+	"14", // bright cyan
+	"33", // orange (256-color)
+}
+
+// tuiServiceColor returns a deterministic color for the given service name.
+func tuiServiceColor(name string) lipgloss.Color {
+	h := fnv.New32a()
+	h.Write([]byte(name))
+	return serviceColorPalette[h.Sum32()%uint32(len(serviceColorPalette))]
+}
+
+// extractServiceName extracts the service name from a summary prefix like
+// "cloudflared.service: ..." → "cloudflared". Returns "" if not found.
+func extractServiceName(summary string) string {
+	for _, suffix := range []string{".service:", ".scope:", ".timer:", ".socket:"} {
+		if idx := strings.Index(summary, suffix); idx > 0 {
+			name := summary[:idx]
+			if sp := strings.LastIndex(name, " "); sp >= 0 {
+				name = name[sp+1:]
+			}
+			return name
+		}
+	}
+	return ""
+}
 
 // TUI-specific styles (separate from the plain renderer styles).
 var (
@@ -87,7 +123,7 @@ type tuiModel struct {
 	viewport        viewport.Model
 	ready           bool
 	cursor          int
-	expanded        map[int]bool // filteredItems index → raw expanded
+	expanded        map[int]bool // filteredItems index → raw expanded (quick inline)
 	filter          levelFilter
 	filteredItems   []tuiItem
 	content         string
@@ -98,6 +134,10 @@ type tuiModel struct {
 	progressCh      <-chan timeline.ProgressUpdate
 	collectorStates []timeline.CollectorState
 	loading         bool // true until all collectors have finished
+	// detail popup
+	detailOpen     bool
+	detailIdx      int // filteredItems index of the currently open detail
+	detailViewport viewport.Model
 }
 
 func newTUIModel(tl *timeline.Timeline) tuiModel {
@@ -179,15 +219,35 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		if !m.ready {
 			m.viewport = viewport.New(msg.Width, m.viewportHeight())
+			m.detailViewport = viewport.New(m.detailPopupWidth(), m.detailPopupHeight())
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = m.viewportHeight()
+			m.detailViewport.Width = m.detailPopupWidth()
+			m.detailViewport.Height = m.detailPopupHeight()
 		}
 		m.rebuildContent()
 		return m, nil
 
 	case tea.KeyMsg:
+		// Detail popup mode intercepts navigation keys
+		if m.detailOpen {
+			switch msg.String() {
+			case "esc", "q", "e", "enter":
+				m.detailOpen = false
+			case "]", "l":
+				m.detailNavigate(1)
+			case "[", "h":
+				m.detailNavigate(-1)
+			case "j", "down":
+				m.detailViewport.LineDown(1)
+			case "k", "up":
+				m.detailViewport.LineUp(1)
+			}
+			return m, nil
+		}
+
 		// Search input mode intercepts most keys
 		if m.searchActive {
 			switch msg.Type {
@@ -242,7 +302,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "G":
 			m.jumpToLastEvent()
 
-		case "e", "enter":
+		case "enter":
+			if m.cursor < len(m.filteredItems) && m.filteredItems[m.cursor].kind == itemEvent {
+				m.detailIdx = m.cursor
+				m.detailOpen = true
+				m.detailViewport.SetContent(m.buildDetailContent(m.cursor))
+				m.detailViewport.GotoTop()
+			}
+
+		case "e":
 			if m.cursor < len(m.filteredItems) && m.filteredItems[m.cursor].kind == itemEvent {
 				m.expanded[m.cursor] = !m.expanded[m.cursor]
 				m.rebuildContent()
@@ -276,6 +344,10 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m tuiModel) View() string {
 	if !m.ready {
 		return "Loading..."
+	}
+
+	if m.detailOpen {
+		return m.detailView()
 	}
 
 	if m.showHelp {
@@ -350,6 +422,173 @@ func (m *tuiModel) jumpToNextSeparator(dir int) {
 			return
 		}
 	}
+}
+
+// --- detail popup ---
+
+var (
+	tuiDetailBorder = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("6")).
+			Padding(0, 1)
+	tuiDetailTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	tuiDetailKey    = lipgloss.NewStyle().Faint(true)
+	tuiDetailFooter = lipgloss.NewStyle().Faint(true)
+)
+
+func (m tuiModel) detailPopupWidth() int {
+	w := m.width - 6
+	if w < 40 {
+		return 40
+	}
+	return w
+}
+
+func (m tuiModel) detailPopupHeight() int {
+	h := m.height - 10
+	if h < 5 {
+		return 5
+	}
+	return h
+}
+
+func (m *tuiModel) detailNavigate(dir int) {
+	// Move detailIdx to next/prev event item in filteredItems, wrapping
+	total := len(m.filteredItems)
+	if total == 0 {
+		return
+	}
+	idx := m.detailIdx + dir
+	for i := 0; i < total; i++ {
+		idx = ((idx % total) + total) % total
+		if m.filteredItems[idx].kind == itemEvent {
+			m.detailIdx = idx
+			m.detailViewport.SetContent(m.buildDetailContent(idx))
+			m.detailViewport.GotoTop()
+			return
+		}
+		idx += dir
+	}
+}
+
+func (m tuiModel) buildDetailContent(itemIdx int) string {
+	if itemIdx < 0 || itemIdx >= len(m.filteredItems) {
+		return ""
+	}
+	item := m.filteredItems[itemIdx]
+	if item.kind != itemEvent || item.eventIndex < 0 || item.eventIndex >= len(m.tl.Events) {
+		return ""
+	}
+	e := m.tl.Events[item.eventIndex]
+
+	w := m.detailPopupWidth() - 4 // subtract padding
+
+	var sb strings.Builder
+	sb.WriteString(tuiDetailKey.Render("Time:     ") + e.Timestamp.Local().Format("2006-01-02 15:04:05") + "\n")
+	sb.WriteString(tuiDetailKey.Render("Source:   ") + e.Source + "\n")
+	sb.WriteString(tuiDetailKey.Render("Level:    ") + renderLevel(e.Level) + "\n")
+	sb.WriteString(tuiDetailKey.Render("Category: ") + styleCategory.Render(e.Category.String()) + "\n")
+	sb.WriteString("\n")
+
+	raw := e.Raw
+	if raw == "" {
+		raw = "(no raw log line available)"
+	}
+	sb.WriteString(tuiDetailKey.Render("Raw:") + "\n")
+	for _, line := range strings.Split(wrapText(raw, w), "\n") {
+		sb.WriteString(tuiRawLine.Render(line) + "\n")
+	}
+
+	return sb.String()
+}
+
+func (m tuiModel) detailView() string {
+	if m.detailIdx < 0 || m.detailIdx >= len(m.filteredItems) {
+		return ""
+	}
+	item := m.filteredItems[m.detailIdx]
+	if item.eventIndex < 0 || item.eventIndex >= len(m.tl.Events) {
+		return ""
+	}
+	e := m.tl.Events[item.eventIndex]
+
+	// Count position among event items
+	pos, total := 0, 0
+	for i, fi := range m.filteredItems {
+		if fi.kind == itemEvent {
+			total++
+			if i <= m.detailIdx {
+				pos = total
+			}
+		}
+	}
+
+	title := tuiDetailTitle.Render(fmt.Sprintf("Event %d / %d", pos, total))
+	summary := renderEventLine(e, false)
+
+	popupW := m.detailPopupWidth()
+	popupH := m.detailPopupHeight()
+
+	m.detailViewport.Width = popupW - 4
+	m.detailViewport.Height = popupH
+
+	footer := tuiDetailFooter.Render("↑↓ scroll  ·  [ ] prev/next  ·  Esc close")
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		summary,
+		strings.Repeat("─", popupW-4),
+		m.detailViewport.View(),
+		strings.Repeat("─", popupW-4),
+		footer,
+	)
+
+	box := tuiDetailBorder.Width(popupW).Render(inner)
+
+	// Centre in terminal
+	lines := strings.Split(box, "\n")
+	boxH := len(lines)
+	topPad := (m.height - boxH) / 2
+	leftPad := (m.width - popupW - 2) / 2
+	if topPad < 0 {
+		topPad = 0
+	}
+	if leftPad < 0 {
+		leftPad = 0
+	}
+	pad := strings.Repeat(" ", leftPad)
+	var sb strings.Builder
+	for i := 0; i < topPad; i++ {
+		sb.WriteByte('\n')
+	}
+	for _, l := range lines {
+		sb.WriteString(pad + l + "\n")
+	}
+	return sb.String()
+}
+
+// --- per-service color rendering ---
+
+// renderTUIEventSummary colors the service name prefix with a service-specific
+// color and the rest of the summary with the severity color.
+func renderTUIEventSummary(e event.Event) string {
+	svcName := extractServiceName(e.Summary)
+	if svcName == "" {
+		return renderSummary(e.Level, e.Summary)
+	}
+
+	svcStyle := lipgloss.NewStyle().Foreground(tuiServiceColor(svcName))
+	suffix := svcName + ".service"
+	for _, s := range []string{".service:", ".scope:", ".timer:", ".socket:"} {
+		if idx := strings.Index(e.Summary, svcName+s); idx >= 0 {
+			breakAt := idx + len(svcName+s)
+			prefix := e.Summary[:breakAt-1] // service name + dot-type, no colon
+			rest := strings.TrimSpace(e.Summary[breakAt:])
+			return svcStyle.Render(prefix+":") + " " + renderSummary(e.Level, rest)
+		}
+	}
+	_ = suffix
+	return renderSummary(e.Level, e.Summary)
 }
 
 // matchesSearch returns true if the event matches the current search query.
@@ -476,7 +715,16 @@ func (m *tuiModel) renderContent() string {
 		case itemEvent:
 			e := m.tl.Events[item.eventIndex]
 			isFirst := firstFaults[item.eventIndex]
-			line := renderEventLine(e, isFirst)
+
+			// Build line using service-colored summary for TUI
+			ts := styleTimestamp.Render(e.Timestamp.Local().Format("2006-01-02 15:04:05"))
+			cat := styleCategory.Render(fmt.Sprintf("[%-7s]", e.Category))
+			lvl := renderLevel(e.Level)
+			summary := renderTUIEventSummary(e)
+			line := fmt.Sprintf("%s  %s  %s  %s", ts, cat, lvl, summary)
+			if isFirst {
+				line += "  " + styleFirstFault.Render("◄── FIRST FAULT?")
+			}
 
 			if selected {
 				sb.WriteString(tuiCursor.Render("▶ ") + line)
@@ -605,7 +853,7 @@ func (m tuiModel) statusLine() string {
 		searchInfo = fmt.Sprintf("  ·  /%s", m.searchQuery)
 	}
 
-	hints := "/ search  ·  ↑↓ scroll  ·  e expand  ·  n/p incident  ·  f filter  ·  q quit  ·  ? help"
+	hints := "/ search  ·  ↑↓ scroll  ·  Enter detail  ·  e expand  ·  n/p incident  ·  f filter  ·  q quit  ·  ? help"
 	status := fmt.Sprintf("  %d/%d  ·  Filter: %s%s  ·  %s", pos, total, m.filter, searchInfo, hints)
 	return tuiStatusBar.Render(status)
 }
@@ -626,13 +874,19 @@ const helpText = `wbts keyboard shortcuts
   ↓ / j       scroll down
   g           jump to top
   G           jump to bottom
-  e / Enter   expand / collapse raw log line
+  Enter       open event detail popup
+  e           expand / collapse raw log line (inline)
   f           cycle filter: All → Warn+ → Error+ → Crit
   /           search (type to filter, Esc to clear)
   n           jump to next incident window
   p           jump to previous incident window
   ?           toggle this help
-  q           quit`
+  q           quit
+
+In the detail popup:
+  ↑↓          scroll raw log
+  [ / ]       previous / next event
+  Esc         close popup`
 
 func (m tuiModel) helpView() string {
 	box := tuiHelp.Render(helpText)
