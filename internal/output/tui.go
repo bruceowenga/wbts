@@ -1,6 +1,7 @@
 package output
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strings"
@@ -135,9 +136,11 @@ type tuiModel struct {
 	collectorStates []timeline.CollectorState
 	loading         bool // true until all collectors have finished
 	// detail popup
-	detailOpen     bool
-	detailIdx      int // filteredItems index of the currently open detail
-	detailViewport viewport.Model
+	detailOpen      bool
+	detailIdx       int // filteredItems index of the currently open detail
+	detailViewport  viewport.Model
+	detailIsJSON    bool // true when the current event's Raw is valid JSON
+	detailFormatted bool // true = pretty-printed JSON; false = raw string
 }
 
 func newTUIModel(tl *timeline.Timeline) tuiModel {
@@ -244,6 +247,12 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detailViewport.LineDown(1)
 			case "k", "up":
 				m.detailViewport.LineUp(1)
+			case "r":
+				if m.detailIsJSON {
+					m.detailFormatted = !m.detailFormatted
+					m.detailViewport.SetContent(m.buildDetailContent(m.detailIdx))
+					m.detailViewport.GotoTop()
+				}
 			}
 			return m, nil
 		}
@@ -306,8 +315,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.filteredItems) && m.filteredItems[m.cursor].kind == itemEvent {
 				m.detailIdx = m.cursor
 				m.detailOpen = true
-				m.detailViewport.SetContent(m.buildDetailContent(m.cursor))
-				m.detailViewport.GotoTop()
+				m.openDetail(m.cursor)
 			}
 
 		case "e":
@@ -452,8 +460,23 @@ func (m tuiModel) detailPopupHeight() int {
 	return h
 }
 
+// openDetail sets up the detail popup for the given filteredItems index.
+func (m *tuiModel) openDetail(itemIdx int) {
+	if itemIdx < 0 || itemIdx >= len(m.filteredItems) {
+		return
+	}
+	item := m.filteredItems[itemIdx]
+	if item.eventIndex < 0 || item.eventIndex >= len(m.tl.Events) {
+		return
+	}
+	e := m.tl.Events[item.eventIndex]
+	_, m.detailIsJSON = formatRawJSON(e.Raw)
+	m.detailFormatted = m.detailIsJSON // format by default when JSON
+	m.detailViewport.SetContent(m.buildDetailContent(itemIdx))
+	m.detailViewport.GotoTop()
+}
+
 func (m *tuiModel) detailNavigate(dir int) {
-	// Move detailIdx to next/prev event item in filteredItems, wrapping
 	total := len(m.filteredItems)
 	if total == 0 {
 		return
@@ -463,8 +486,7 @@ func (m *tuiModel) detailNavigate(dir int) {
 		idx = ((idx % total) + total) % total
 		if m.filteredItems[idx].kind == itemEvent {
 			m.detailIdx = idx
-			m.detailViewport.SetContent(m.buildDetailContent(idx))
-			m.detailViewport.GotoTop()
+			m.openDetail(idx)
 			return
 		}
 		idx += dir
@@ -493,8 +515,21 @@ func (m tuiModel) buildDetailContent(itemIdx int) string {
 	raw := e.Raw
 	if raw == "" {
 		raw = "(no raw log line available)"
+	} else if m.detailFormatted {
+		if formatted, ok := formatRawJSON(raw); ok {
+			raw = formatted
+		}
 	}
-	sb.WriteString(tuiDetailKey.Render("Raw:") + "\n")
+
+	label := "Raw:"
+	if m.detailIsJSON {
+		if m.detailFormatted {
+			label = "Raw (JSON):"
+		} else {
+			label = "Raw (unformatted):"
+		}
+	}
+	sb.WriteString(tuiDetailKey.Render(label) + "\n")
 	for _, line := range strings.Split(wrapText(raw, w), "\n") {
 		sb.WriteString(tuiRawLine.Render(line) + "\n")
 	}
@@ -532,7 +567,15 @@ func (m tuiModel) detailView() string {
 	m.detailViewport.Width = popupW - 4
 	m.detailViewport.Height = popupH
 
-	footer := tuiDetailFooter.Render("↑↓ scroll  ·  [ ] prev/next  ·  Esc close")
+	footerHints := "↑↓ scroll  ·  [ ] prev/next  ·  Esc close"
+	if m.detailIsJSON {
+		mode := "JSON"
+		if !m.detailFormatted {
+			mode = "RAW"
+		}
+		footerHints = fmt.Sprintf("[%s]  r toggle  ·  %s", mode, footerHints)
+	}
+	footer := tuiDetailFooter.Render(footerHints)
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
@@ -765,26 +808,55 @@ func tuiSeparatorLine(iw timeline.IncidentWindow, width int) string {
 	return tuiSep.Render(rule + "\n" + inner + "\n" + rule)
 }
 
-// wrapText breaks s at word boundaries to fit within maxWidth.
+// formatRawJSON tries to parse s as JSON and returns pretty-printed output.
+// Returns (formatted, true) on success, (s, false) if s is not valid JSON.
+func formatRawJSON(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if len(s) == 0 || (s[0] != '{' && s[0] != '[') {
+		return s, false
+	}
+	var v interface{}
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return s, false
+	}
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return s, false
+	}
+	return string(out), true
+}
+
+// wrapText wraps s to fit within maxWidth columns. Handles embedded newlines
+// correctly by wrapping each existing line independently.
 func wrapText(s string, maxWidth int) string {
-	if maxWidth <= 0 || len(s) <= maxWidth {
+	if maxWidth <= 0 {
 		return s
+	}
+	var result []string
+	for _, line := range strings.Split(s, "\n") {
+		result = append(result, wrapLine(line, maxWidth)...)
+	}
+	return strings.Join(result, "\n")
+}
+
+func wrapLine(s string, maxWidth int) []string {
+	if len(s) <= maxWidth {
+		return []string{s}
 	}
 	var lines []string
 	for len(s) > maxWidth {
 		cut := maxWidth
-		// Try to cut at a space
 		for cut > 0 && s[cut] != ' ' {
 			cut--
 		}
 		if cut == 0 {
-			cut = maxWidth // no space found, hard cut
+			cut = maxWidth // hard cut — no space found
 		}
 		lines = append(lines, s[:cut])
 		s = strings.TrimPrefix(s[cut:], " ")
 	}
 	lines = append(lines, s)
-	return strings.Join(lines, "\n")
+	return lines
 }
 
 func max(a, b int) int {

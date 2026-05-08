@@ -660,6 +660,100 @@ func TestDetailPopupNavigatesEvents(t *testing.T) {
 	}
 }
 
+func TestDetailPopupJSONFormattedByDefault(t *testing.T) {
+	jsonRaw := `{"level":"error","msg":"connection refused","service":"nginx","port":80}`
+	events := []event.Event{
+		makeTestEvent(baseTime(), event.Error, "nginx error", jsonRaw),
+	}
+	m := newTestModel(events, nil)
+
+	next, _ := m.Update(keySpecial(tea.KeyEnter))
+	m = next.(tuiModel)
+
+	if !m.detailOpen {
+		t.Fatal("popup should be open")
+	}
+	if !m.detailIsJSON {
+		t.Error("detailIsJSON should be true for a JSON raw field")
+	}
+	if !m.detailFormatted {
+		t.Error("detailFormatted should default to true when raw is JSON")
+	}
+	// Content should contain indented JSON (has newlines)
+	if !strings.Contains(m.detailViewport.View(), "\"level\"") {
+		t.Error("formatted content should contain JSON keys")
+	}
+}
+
+func TestDetailPopupRawToggle(t *testing.T) {
+	jsonRaw := `{"level":"error","msg":"test"}`
+	events := []event.Event{
+		makeTestEvent(baseTime(), event.Error, "test", jsonRaw),
+	}
+	m := newTestModel(events, nil)
+
+	next, _ := m.Update(keySpecial(tea.KeyEnter))
+	m = next.(tuiModel)
+	if !m.detailFormatted {
+		t.Fatal("precondition: should start formatted")
+	}
+
+	// r toggles to raw
+	next, _ = m.Update(keyMsg('r'))
+	m = next.(tuiModel)
+	if m.detailFormatted {
+		t.Error("r should switch to raw view")
+	}
+
+	// r toggles back to formatted
+	next, _ = m.Update(keyMsg('r'))
+	m = next.(tuiModel)
+	if !m.detailFormatted {
+		t.Error("second r should switch back to formatted")
+	}
+}
+
+func TestDetailPopupNonJSONNoFormatting(t *testing.T) {
+	events := []event.Event{
+		makeTestEvent(baseTime(), event.Error, "plain log", "not json at all — just a plain log line"),
+	}
+	m := newTestModel(events, nil)
+
+	next, _ := m.Update(keySpecial(tea.KeyEnter))
+	m = next.(tuiModel)
+
+	if m.detailIsJSON {
+		t.Error("detailIsJSON should be false for plain text raw")
+	}
+	if m.detailFormatted {
+		t.Error("detailFormatted should be false for non-JSON raw")
+	}
+
+	// r should have no effect on non-JSON
+	before := m.detailFormatted
+	next, _ = m.Update(keyMsg('r'))
+	m = next.(tuiModel)
+	if m.detailFormatted != before {
+		t.Error("r should not change detailFormatted for non-JSON raw")
+	}
+}
+
+func TestWrapTextMultiLine(t *testing.T) {
+	// Multi-line input should preserve existing newlines and wrap long lines
+	input := "short line\na very long line that definitely exceeds twenty characters and needs wrapping\nshort again"
+	result := wrapText(input, 20)
+	lines := strings.Split(result, "\n")
+	if len(lines) < 3 {
+		t.Errorf("expected at least 3 lines (preserved newlines + wrapped), got %d: %q", len(lines), result)
+	}
+	// Every line should be ≤ 20 chars
+	for _, l := range lines {
+		if len(l) > 20 {
+			t.Errorf("line %q exceeds max width 20", l)
+		}
+	}
+}
+
 func TestDetailPopupWrapsNavigation(t *testing.T) {
 	base := baseTime()
 	events := []event.Event{
