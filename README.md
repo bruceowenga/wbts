@@ -122,6 +122,24 @@ in the message body. `wbts` detects and elevates these automatically:
 | `Forwarded alert: CRITICAL` | Alertmanager bridge | `CRIT` |
 | `msg="restarting container"` | Docker daemon | `WARN` |
 
+## Shell completions
+
+```bash
+# bash
+wbts completion bash > /etc/bash_completion.d/wbts          # system-wide
+wbts completion bash > ~/.bash_completion                    # current user
+
+# zsh
+wbts completion zsh > "${fpath[1]}/_wbts"                   # system-wide
+echo 'source <(wbts completion zsh)' >> ~/.zshrc            # current user
+
+# fish
+wbts completion fish > ~/.config/fish/completions/wbts.fish
+
+# powershell
+wbts completion powershell >> $PROFILE
+```
+
 ## Contributing
 
 See [docs/collectors.md](docs/collectors.md) to learn how to write a collector.
