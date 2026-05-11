@@ -1,6 +1,6 @@
 pkgbase = wbts-bin
-	pkgdesc = Forensic incident timeline builder for Linux/Docker systems — correlates journald, dmesg, Docker, Kubernetes, apt/dnf, and auth logs into a single incident timeline
-	pkgver = 0.2.5
+	pkgdesc = What broke the server — forensic incident timeline for Linux/Docker
+	pkgver = 0.2.1
 	pkgrel = 1
 	url = https://github.com/bruceowenga/wbts
 	arch = x86_64
@@ -8,9 +8,11 @@ pkgbase = wbts-bin
 	license = MIT
 	provides = wbts
 	conflicts = wbts
-	source_x86_64 = wbts-bin-0.2.5-x86_64.tar.gz::https://github.com/bruceowenga/wbts/releases/download/v0.2.5/wbts_0.2.5_linux_amd64.tar.gz
-	sha256sums_x86_64 = 49d3a8a8d3f1c3f211518e68f5f23cddfb5aa419e3565b4737ca1e5d31cb4abc
-	source_aarch64 = wbts-bin-0.2.5-aarch64.tar.gz::https://github.com/bruceowenga/wbts/releases/download/v0.2.5/wbts_0.2.5_linux_arm64.tar.gz
-	sha256sums_aarch64 = f82ae1df35cd9fbfd459b95a3ece90c2bfa9568e91fdd870a0979f873cf89d22
+	source_x86_64 = wbts-0.2.1-x86_64.tar.gz::https://github.com/bruceowenga/wbts/releases/download/v0.2.1/wbts_0.2.1_linux_amd64.tar.gz
+	sha256sums_x86_64 = 31ef1d10e135c652b532c51bd3adc0ec5b0eaa0fda09eca865d3771342d730d0
+	source_aarch64 = wbts-0.2.1-aarch64.tar.gz::https://github.com/bruceowenga/wbts/releases/download/v0.2.1/wbts_0.2.1_linux_arm64.tar.gz
+	sha256sums_aarch64 = c8afd2a49029d084b2a6b12974ac3ee336018aa267bd3a90f2db180ce948dc31
 
 pkgname = wbts-bin
+	provides = wbts
+	conflicts = wbts
