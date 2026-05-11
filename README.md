@@ -8,7 +8,7 @@ curl -fsSL https://raw.githubusercontent.com/bruceowenga/wbts/main/scripts/insta
 $ wbts --since 3h
 ```
 
-![wbts TUI showing a scrollable incident timeline with cursor on a k3s housekeeping error, incident window summary at the bottom](https://github.com/bruceowenga/wbts/assets/tui-screenshot.png)
+![wbts TUI showing a scrollable incident timeline with color-coded events and an incident window](docs/screenshots/tui-incident.png)
 
 `wbts` correlates logs from journald, dmesg, Docker events, Kubernetes, apt/dnf, and auth
 into a single chronological timeline with an interactive TUI. Run it after an incident to
@@ -68,6 +68,8 @@ When stdout is a terminal, `wbts` launches an interactive timeline viewer:
 
 Plain output is always available via `--no-tui`, `--json`, `--no-color`, `--summary`, or piping.
 
+![wbts TUI detail popup showing expanded raw log line for a selected event](docs/screenshots/tui-detail.png)
+
 ## Collectors
 
 | Collector | Source | What it captures |
@@ -93,6 +95,8 @@ so pre-crash events are captured even after a server restart.
 ## Permissions
 
 `wbts` reads only — it never writes to logs or modifies system state.
+
+![wbts check-perms output showing available and unavailable collectors](docs/screenshots/check-perms.png)
 
 ```bash
 # Check what's accessible with your current user
