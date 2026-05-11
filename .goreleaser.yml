@@ -14,6 +14,7 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - darwin
     goarch:
       - amd64
       - arm64
@@ -68,6 +69,21 @@ changelog:
       order: 1
     - title: Other
       order: 999
+
+brews:
+  - name: wbts
+    homepage: https://github.com/bruceowenga/wbts
+    description: "What broke the server — forensic incident timeline for Linux/Docker"
+    license: MIT
+    repository:
+      owner: bruceowenga
+      name: homebrew-wbts
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    install: |
+      bin.install "wbts"
+    test: |
+      system "#{bin}/wbts", "--version"
 
 release:
   github:
