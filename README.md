@@ -81,6 +81,8 @@ Plain output is always available via `--no-tui`, `--json`, `--no-color`, `--summ
 | `apt` | `/var/log/apt/history.log` + rotated | package installs, upgrades, removals (Debian/Ubuntu) |
 | `dnf` | `/var/log/dnf.rpm.log` + rotated | package installs, upgrades, removals (Fedora/RHEL/Rocky) |
 | `auth` | `/var/log/auth.log` + rotated | failed logins, accepted sessions, sudo commands, root sessions |
+| `rasdaemon` | `/var/lib/rasdaemon/ras-mc.db` | hardware ECC memory errors, CPU MCA events (correctable → Warn, uncorrectable → Critical) |
+| `ipmi` | `ipmitool sel elist` | PSU failures, thermal threshold crossings, fan failures, drive faults from the BMC SEL |
 
 All file-based collectors automatically read rotated log files (`.1`, `.2.gz`, date-based)
 so pre-crash events are captured even after a server restart.
