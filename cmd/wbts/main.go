@@ -93,6 +93,8 @@ Examples:
 				collector.NewAptCollector(),
 				collector.NewDnfCollector(),
 				collector.NewAuthCollector(),
+				collector.NewRasdaemonCollector(),
+				collector.NewIPMICollector(),
 			}
 
 			renderOpts := output.Options{
@@ -144,6 +146,8 @@ func newCheckPermsCmd() *cobra.Command {
 				collector.NewAptCollector(),
 				collector.NewDnfCollector(),
 				collector.NewAuthCollector(),
+				collector.NewRasdaemonCollector(),
+				collector.NewIPMICollector(),
 			}
 
 			fmt.Printf("%-20s  %s\n", "COLLECTOR", "STATUS")
